@@ -27,7 +27,7 @@ export async function reasonWithMeta({business,task='growth',mode='spark',fetchI
  const facts={name:String(business?.name||'').slice(0,100),industry:String(business?.industry||'').slice(0,100),objective:String(business?.objective||'').slice(0,300),audience:String(business?.audience||'').slice(0,200),facts:String(business?.facts||'').slice(0,2000)};
  if(!facts.name||!facts.objective)throw new Error('BUSINESS_CONTEXT_REQUIRED');
  const system='You are MARI in Ralion OS. Analyze only supplied user claims as unverified information. Never claim to have crawled websites, fetched ad metrics, generated images or executed campaigns. Propose a specific testable campaign opportunity. Return concise plain text with an insight, hypothesis, suggested action and success metric. Require explicit human approval before any external action.';
- const result=await metaRequest('/responses',{model:MODEL_IDS[mode],input:[{role:'system',content:system},{role:'user',content:JSON.stringify({task,business:facts})}]},{key,fetchImpl});
+ const result=await metaRequest('/responses',{model:MODEL_IDS[mode],reasoning:{effort:mode==='wonder'?'high':'medium',summary:'auto'},input:[{role:'system',content:system},{role:'user',content:JSON.stringify({task,business:facts})}]},{key,fetchImpl});
  const output=responseText(result);if(!output)throw new Error('META_EMPTY_MODEL_RESPONSE');
  return {provider:'META_MODEL_API',model:MODEL_IDS[mode],output,requestId:result.id||null,mode,claimsSource:'USER_SUPPLIED_UNVERIFIED'};
 }
