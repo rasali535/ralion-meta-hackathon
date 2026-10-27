@@ -1,0 +1,17 @@
+{
+  "name": "@ralion/meta-ai-edition",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev -p 3600",
+    "build": "next build",
+    "start": "next start -p 3600"
+  },
+  "dependencies": {
+    "next": "15.5.26",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "lucide-react": "^0.395.0"
+  },
+  "devDependencies": {}
+}
