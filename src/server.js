@@ -52,5 +52,5 @@ const server = http.createServer(async (req, res) => {
   }
 });
 const port = Number(process.env.PORT || 3000);
-if (process.env.NODE_ENV !== 'test') server.listen(port, '127.0.0.1', () => console.log(`MARI Growth Autopilot listening on http://127.0.0.1:${port}`));
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) server.listen(port, '127.0.0.1', () => console.log(`MARI Growth Autopilot listening on http://127.0.0.1:${port}`));
 export { server };
