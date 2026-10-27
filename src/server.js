@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { validateBusiness, makeEvidence, createProposal, approve, executeDraft } from './engine.js';
 import { generateStrategy } from './model.js';
+import { buildCampaignPlan } from './core/campaignPlan.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const proposals = new Map();
@@ -33,6 +34,7 @@ const server = http.createServer(async (req, res) => {
       const evidence = makeEvidence(business, input.metrics);
       const { strategy, provider } = await generateStrategy(evidence, input.mode);
       const proposal = createProposal(evidence, strategy, provider);
+      proposal.campaignPlan = buildCampaignPlan(proposal);
       if (proposals.size >= MAX_PROPOSALS) proposals.delete(proposals.keys().next().value);
       proposals.set(proposal.id, proposal);
       return send(res, 201, proposal);
