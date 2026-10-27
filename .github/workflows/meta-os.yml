@@ -1,0 +1,38 @@
+name: Meta OS Next.js foundation
+on:
+  push:
+    branches: [feat/meta-ai-os-foundation]
+    paths:
+      - 'apps/meta-os/**'
+      - '.github/workflows/meta-os.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/meta-os
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test Meta provider contracts
+        run: npm test
+      - name: Verify build
+        run: npm run build
+      - name: Smoke-test route
+        run: |
+          (npm run start > /tmp/meta-os.log 2>&1 &)
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://localhost:3600/ > /tmp/meta-os-home.html; then break; fi
+            sleep 2
+          done
+          grep -q "RALION" /tmp/meta-os-home.html
+          curl --fail --silent -X POST http://localhost:3600/api/mission \
+            -H 'content-type: application/json' \
+            --data '{"name":"Northstar Coffee","industry":"Coffee","objective":"Gain customers","website":"https://example.org"}' \
+            > /tmp/meta-os-mission.json
+          node -e "const p=require('/tmp/meta-os-mission.json');if(p.provider!=='DETERMINISTIC_DEMO_NOT_META_AI'||p.execution.status!=='NOT_CONNECTED'||p.social.length!==2)process.exit(1)"
