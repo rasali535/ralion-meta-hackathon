@@ -19,3 +19,21 @@ Read-only source: `rasali535/alinew` (`main`, inspected 2026-10-27). Curated, ty
 Initial repository bootstrap and safe reusable contract extraction only. App runtime, Meta API adapter, tests, demo and deployment are **not yet implemented**.
 
 See `SOURCE_INVENTORY.md` for provenance, inclusions, exclusions and next steps.
+
+## Run the prototype locally
+
+Requires Node.js 20 or newer. This stage has no third-party runtime dependencies.
+
+```bash
+npm run check
+npm test
+npm start
+```
+
+Open `http://127.0.0.1:3000`. The demo-mode growth recommendation and approval/draft flow work with synthetic input and no API credentials. **Demo mode does not invoke Meta AI.**
+
+To exercise a supported Meta model endpoint, configure `META_MODEL_API_URL`, `META_MODEL_API_KEY` and `META_MODEL_ID` in your local environment (see `.env.example`). The adapter currently expects a compatible HTTPS chat-completions response with `choices[0].message.content` as JSON. This compatibility has not been validated against our hackathon account.
+
+A GitHub Actions check has been added; CI status should be confirmed in the Actions tab. The environment used to author this commit could not retrieve the public repository for a local test run, so no passing-test claim is made.
+
+**Do not deploy this prototype publicly yet.** Its server binds to loopback, uses in-memory storage and has no authentication. See `docs/SECURITY.md` for productionization controls.
