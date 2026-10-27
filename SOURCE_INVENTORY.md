@@ -21,3 +21,7 @@ Destination repository: `rasali535/ralion-meta-hackathon` (public).
 5. Verify public-repository licensing/attribution before a wider source release.
 
 Pattern scans are not exhaustive. New code must be reviewed independently before each public commit.
+
+## Incremental extraction: Growth intelligence contracts
+- `packages/ai/src/businessGrowthProfile.service.ts` → `src/contracts/businessGrowthProfile.types.ts`: extracted **only** type/interface declarations for growth opportunity, risk, memory, and profile. Omitted imports, in-memory store, simulated figures, business logic and production integration.
+- Inspected candidate UI components (`DesktopWorkspaceHome`, `MariMarkdownMessage`, `CompetitiveIntelligencePanel`); not copied because their React/Next/UI/auth dependencies would bloat the standalone Node prototype. UI is adapted independently.
