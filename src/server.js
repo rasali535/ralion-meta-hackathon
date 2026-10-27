@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { validateBusiness, makeEvidence, createProposal, approve, executeDraft } from './engine.js';
 import { generateStrategy } from './model.js';
 import { buildCampaignPlan } from './core/campaignPlan.js';
+import { intakeBusinessContext } from './core/businessIntake.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const proposals = new Map();
@@ -31,9 +32,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && path === '/api/analyze') {
       const input = await body(req);
       const business = validateBusiness(input.business);
+      const context = intakeBusinessContext(input.context);
       const evidence = makeEvidence(business, input.metrics);
+      evidence.context = context;
       const { strategy, provider } = await generateStrategy(evidence, input.mode);
       const proposal = createProposal(evidence, strategy, provider);
+      proposal.evidence.context = context;
       proposal.campaignPlan = buildCampaignPlan(proposal);
       if (proposals.size >= MAX_PROPOSALS) proposals.delete(proposals.keys().next().value);
       proposals.set(proposal.id, proposal);
