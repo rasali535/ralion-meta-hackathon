@@ -13,13 +13,13 @@ Verified from Meta documentation (2026-10-27):
 4. **Meta status API**: `GET /api/meta/status` returns model readiness without exposing secrets. `POST /api/meta/reason` is guarded and disabled by default.
 
 ## Phase 1.5 Live Inference Verification Status (2026-10-27)
-- **Muse Spark 1.3 (`muse-spark-1.3`)**: **VERIFIED LIVE** against real Meta Model API (`https://api.meta.ai/v1/responses`).
+- **Muse Spark 1.3 (`muse-spark-1.3`)**: **Live receipt (owner-supplied; not independently witnessed by Anti)** against the Meta Model API (`https://api.meta.ai/v1/responses`).
   - Request ID: `resp_6ae0ff1b9215a46fe33a464a`
   - Latency: 4,710 ms
   - Result: Real contextual AI response received with grounded reasoning output.
   - Server-side isolation: Zero client exposure; credential retained strictly server-side.
-- **Muse Wonder 1.0 (`muse-wonder-1.0`)**: Adapter implemented (`reasonWithMeta({mode:'wonder'})` using high effort reasoning and auto summary). Contract tests passing. Minimal live probe prepared; awaiting explicit authorization before live invocation.
-- **Muse Image 1.0 (`muse-image-1.0`)**: Adapter implemented (`generateWithMuseImage` via `POST /v1/images/generations`). Contract tests passing. Minimal live probe prepared; awaiting explicit authorization before live invocation.
+- **Muse Wonder 1.0 (`muse-wonder-1.0`)**: Adapter implemented (`reasonWithMeta({mode:'wonder'})` using high effort reasoning and auto summary). Contract tests passing. Owner-supplied live receipt: see docs/PHASE_1_5_VALIDATION_STATUS.md (not independently witnessed by Anti).
+- **Muse Image 1.0 (`muse-image-1.0`)**: Adapter implemented (`generateWithMuseImage` via `POST /v1/images/generations`). Contract tests passing. Owner-supplied live receipt: see docs/PHASE_1_5_VALIDATION_STATUS.md (not independently witnessed by Anti).
 
 ## Pending real integration
 - **SAM 3.1**: hosted via `POST /v1/responses` for text-prompted image/video segmentation. Implement verified media payload and masks parser against official samples before enabling. Reserve it for product cutouts, visual inspection and asset preparation; it does *not* measure marketing effectiveness.
