@@ -11,8 +11,8 @@ export function validateBusiness(input) {
 }
 
 export function makeEvidence(business, metrics = {}) {
-  const visits = Number(metrics.visits);
-  const leads = Number(metrics.leads);
+  const visits = metrics?.visits === null || metrics?.visits === undefined || metrics?.visits === '' ? NaN : Number(metrics.visits);
+  const leads = metrics?.leads === null || metrics?.leads === undefined || metrics?.leads === '' ? NaN : Number(metrics.leads);
   const valid = Number.isInteger(visits) && visits >= 0 && visits <= 10_000_000 && Number.isInteger(leads) && leads >= 0 && leads <= visits;
   return { business, metrics: valid ? { visits, leads, conversionRatePercent: visits ? Number((leads / visits * 100).toFixed(2)) : 0 } : null, metricsSource: valid ? 'USER_SUPPLIED_UNVERIFIED' : 'NO_METRICS_PROVIDED' };
 }
