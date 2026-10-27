@@ -4,16 +4,18 @@
  *
  * Fetches one user-supplied public HTTPS page with layered guards:
  * https-only, no credentials, no non-default ports, hostname/IP blocklists,
- * DNS re-validation on every hop, manual redirect following with per-hop
+ * DNS validation on every hop, manual redirect following with per-hop
  * re-validation, content-type allowlist, and byte/time caps.
  * Inject fetchImpl/lookupImpl for contract tests.
  *
- * Residual risk: DNS is validated before fetch, but the HTTP client resolves
- * again at connect time (TOCTOU). Add an egress allowlist or pinned dialer
- * before any production use.
+ * Rebinding defense: the default transport pins each connection to a
+ * validated lookup result, so a hostile DNS answer change between validation
+ * and connect cannot redirect the socket. TLS identity still uses the original
+ * hostname. Add an egress allowlist before any production use.
  */
 import {lookup as dnsLookup} from 'node:dns/promises';
 import {createHash} from 'node:crypto';
+import {request as httpsRequest} from 'node:https';
 
 export const WEBSITE_INGEST_LIMITS=Object.freeze({timeoutMs:12000,maxBytes:750000,maxRedirects:3,maxExcerptChars:2000,maxTitleChars:200,maxDescriptionChars:500});
 
@@ -87,16 +89,81 @@ async function assertSafeDns(host,lookupImpl){
   }
 }
 
-async function fetchOnce(href,fetchImpl,timeoutMs){
+async function fetchOnce(href,fetchImpl,timeoutMs,maxBytes){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
-    return await fetchImpl(href,{method:'GET',redirect:'manual',signal:controller.signal,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'}});
+    return await fetchImpl(href,{method:'GET',redirect:'manual',signal:controller.signal,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'}});
   }catch(e){
     if(e&&e.name==='AbortError')throw new Error('WEBSITE_TIMEOUT');
     if(controller.signal.aborted)throw new Error('WEBSITE_TIMEOUT');
+    if(e&&/^WEBSITE_[A-Z0-9_]+$/.test(String(e.message)))throw e;
     throw new Error('WEBSITE_FETCH_FAILED');
   }finally{clearTimeout(timer);}
+}
+export async function pinnedLookupFor(hostname,lookupImpl){
+  const host=stripBrackets(String(hostname||'')).toLowerCase().replace(/\.+$/,'');
+  assertPublicHostname(host);
+  let records;
+  try{records=await lookupImpl(host,{all:true});}catch{throw new Error('WEBSITE_DNS_FAILED');}
+  const list=Array.isArray(records)?records:[records];
+  if(!list.length)throw new Error('WEBSITE_DNS_FAILED');
+  const pinned=[];
+  for(const r of list){
+    const addr=typeof r==='string'?r:r&&r.address;
+    if(!addr||isBlockedIpLiteral(String(addr)))throw new Error('WEBSITE_DNS_BLOCKED');
+    pinned.push({address:String(addr),family:Number(r&&r.family)===6||String(addr).includes(':')?6:4});
+  }
+  const primary=pinned[0];
+  const lookup=(name,opts,cb)=>{
+    const callback=typeof opts==='function'?opts:cb;
+    process.nextTick(()=>callback(null,primary.address,primary.family));
+  };
+  return {lookup,addresses:pinned.map(p=>p.address)};
+}
+function nodeHttpsFetch(href,{lookup,timeoutMs,maxBytes,headers,signal,requestImpl}){
+  return new Promise((resolve,reject)=>{
+    let done=false;let req=null;
+    const timer=setTimeout(()=>finish('WEBSITE_TIMEOUT'),timeoutMs);
+    const cleanup=()=>{clearTimeout(timer);if(signal)signal.removeEventListener('abort',onAbort);};
+    const finish=(code,result)=>{
+      if(done)return;done=true;cleanup();
+      if(req){try{req.destroy();}catch{}}
+      if(code)reject(new Error(code));else resolve(result);
+    };
+    const onAbort=()=>finish('WEBSITE_TIMEOUT');
+    const getHeader=(raw,k)=>{const val=raw?raw[String(k).toLowerCase()]:undefined;return Array.isArray(val)?val[0]:(val==null?null:String(val));};
+    try{
+      req=requestImpl(href,{method:'GET',headers,lookup},(res)=>{
+        const status=res.statusCode||0;
+        const wrapped={get:(k)=>getHeader(res.headers,k)};
+        if(status>=300&&status<400){
+          if(res.resume)res.resume();
+          finish(null,{status,headers:wrapped,body:null,ok:false,text:async()=>''});
+          return;
+        }
+        const chunks=[];let total=0;
+        res.on('data',(c)=>{const n=c?c.length:0;total+=n;if(total>maxBytes){finish('WEBSITE_RESPONSE_TOO_LARGE');return;}if(n)chunks.push(c);});
+        res.on('end',()=>finish(null,{status,headers:wrapped,body:null,ok:status>=200&&status<300,text:async()=>Buffer.concat(chunks).toString('utf8')}));
+        res.on('error',()=>finish('WEBSITE_FETCH_FAILED'));
+      });
+    }catch{finish('WEBSITE_FETCH_FAILED');return;}
+    if(!req||typeof req.on!=='function'||typeof req.end!=='function'){finish('WEBSITE_FETCH_FAILED');return;}
+    req.on('error',()=>finish('WEBSITE_FETCH_FAILED'));
+    if(signal){if(signal.aborted)finish('WEBSITE_TIMEOUT');else signal.addEventListener('abort',onAbort,{once:true});}
+    try{req.end();}catch{finish('WEBSITE_FETCH_FAILED');}
+  });
+}
+export function createSecureFetch({lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl=(url,options,cb)=>httpsRequest(url,options,cb)}={}){
+  return async function secureFetch(href,init={}){
+    let u;
+    try{u=new URL(String(href));}catch{throw new Error('WEBSITE_URL_INVALID');}
+    if(u.protocol!=='https:')throw new Error('WEBSITE_URL_INVALID');
+    const {lookup}=await pinnedLookupFor(u.hostname,lookupImpl);
+    const timeoutMs=Number(init.timeoutMs)>0?Math.floor(Number(init.timeoutMs)):WEBSITE_INGEST_LIMITS.timeoutMs;
+    const maxBytes=Number(init.maxBytes)>0?Math.floor(Number(init.maxBytes)):WEBSITE_INGEST_LIMITS.maxBytes;
+    return nodeHttpsFetch(u.href,{lookup,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'},signal:init.signal,requestImpl});
+  };
 }
 async function discardBody(response){
   const body=response&&response.body;
@@ -179,13 +246,14 @@ export function extractEvidence(html,{sourceUrl,finalUrl}){
   };
 }
 
-export async function ingestWebsite(targetUrl,{fetchImpl=fetch,lookupImpl=(host,opts)=>dnsLookup(host,opts),timeoutMs=WEBSITE_INGEST_LIMITS.timeoutMs,maxBytes=WEBSITE_INGEST_LIMITS.maxBytes,maxRedirects=WEBSITE_INGEST_LIMITS.maxRedirects}={}){
+export async function ingestWebsite(targetUrl,{fetchImpl,lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl,timeoutMs=WEBSITE_INGEST_LIMITS.timeoutMs,maxBytes=WEBSITE_INGEST_LIMITS.maxBytes,maxRedirects=WEBSITE_INGEST_LIMITS.maxRedirects}={}){
   let current=assertSafeTargetUrl(targetUrl);
+  const transport=fetchImpl||createSecureFetch({lookupImpl,requestImpl});
   const chain=[current.href];
   let response=null;let hops=0;
   for(;;){
     await assertSafeDns(stripBrackets(current.hostname),lookupImpl);
-    response=await fetchOnce(current.href,fetchImpl,timeoutMs);
+    response=await fetchOnce(current.href,transport,timeoutMs,maxBytes);
     if(response&&(response.status===0||response.type==='opaqueredirect'))throw new Error('WEBSITE_REDIRECT_MASKED');
     const status=response?response.status:0;
     if(status>=300&&status<400){

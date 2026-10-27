@@ -1,4 +1,5 @@
 /** Portable mission planning, deterministic demo adapter only. No external action or generated results. */
+import {verifyApprovalRecord} from './approval.js';
 export const MISSION_SCHEMA_VERSION='1.1';
 export function missionInput(input){
   const name=String(input?.name||'').trim().slice(0,100);
@@ -47,4 +48,21 @@ export function planMission(input,options={}){
   execution:{status:'NOT_CONNECTED',receipt:null},
   feedback:{status:'AWAITING_REAL_DATA',metrics:[]}
   };
+}
+export function attachApproval(mission,{record,expectedOrganizationId,expectedWorkspaceId,hmacSecret}={}){
+  if(!mission||typeof mission!=='object')throw new Error('APPROVAL_INVALID_MISSION');
+  if(!record||typeof record!=='object')throw new Error('APPROVAL_RECORD_INVALID');
+  if(!hmacSecret)throw new Error('APPROVAL_SECRET_REQUIRED');
+  const org=String(expectedOrganizationId||'').trim();
+  const ws=String(expectedWorkspaceId||'').trim();
+  if(!org||!ws)throw new Error('APPROVAL_TENANT_REQUIRED');
+  if(String(record.organizationId||'')!==org||String(record.workspaceId||'')!==ws)throw new Error('APPROVAL_TENANT_MISMATCH');
+  if(String(record.scope||'')!=='LOCAL_DRAFT_ONLY')throw new Error('APPROVAL_SCOPE_UNAUTHORIZED');
+  let verified=false;
+  try{verified=verifyApprovalRecord(record,mission,{hmacSecret})===true;}
+  catch{verified=false;}
+  if(!verified)throw new Error('APPROVAL_RECORD_INVALID');
+  return {...mission,
+    approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:'LOCAL_DRAFT_ONLY',planHash:String(record.planHash||''),approvalId:String(record.approvalId||''),approvedAt:String(record.approvedAt||''),verified:true},
+    execution:{status:'NOT_CONNECTED',receipt:null}};
 }

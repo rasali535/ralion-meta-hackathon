@@ -32,7 +32,14 @@ At https://dev.meta.ai, create a Model API key for the appropriate hackathon pro
 - `MODEL_API_KEY` = server-only Model API credential.
 - `META_REASONING_API_ENABLED=false` until authentication, quotas and rate limits are in place.
 - `META_REASONING_ACCESS_TOKEN` = separate high-entropy server-side access token for restricted integration testing.
+- `META_DEMO_TOKEN_SECRET` = HMAC secret minting expiring per-tenant demo tokens (`v2.<org>.<workspace>.<exp>.<sig>`); mint server-side only, no issuance endpoint exists. Legacy v1 tokens are rejected.
+- Per-token rate limits on `POST /api/meta/reason`: 10/min burst + 200/day, in-memory per server instance; exceeding returns 429 with `Retry-After`.
+- Per-workspace daily inference budgets enforced in-route (100 Spark / 25 Wonder / 10 Image); exceeding returns 429.
+- Keep `META_REASONING_API_ENABLED=false` everywhere except the isolated preview with all secrets configured.
 No real secret belongs in `.env.example`.
+
+## MARI live wiring (mission backend)
+`POST /api/mission` stays a deterministic demo unless all of these hold: `MARI_LIVE_REASONING_ENABLED=true`, master switch `META_REASONING_API_ENABLED=true`, `MODEL_API_KEY` configured, request body `live:true`, and a valid demo token in `x-meta-demo-access`. The shared guard (`lib/inference-access.js`) enforces token authentication with explicit organization + workspace, per-token rate limits, and per-tenant budgets; usage is recorded only after a successful model response. Any failure keeps the deterministic mission and records a `liveError` code instead of failing the request. Live output is labeled `META_MODEL_OUTPUT_FROM_UNVERIFIED_CLAIMS` with model, request ID, and tenant. The dashboard distinguishes deterministic demo, live AI, error, and approval states.
 
 ## Reintegration
 Provider is an explicit adapter under `lib/meta/provider.js`. Move its interface/contract tests into a portable `packages/ai` provider package before integrating into Ralion, then connect workspace-scoped business context, feature flags, approvals, audit logs and cost accounting.
