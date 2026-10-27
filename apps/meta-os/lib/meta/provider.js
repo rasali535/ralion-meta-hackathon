@@ -35,5 +35,5 @@ export async function generateWithMuseImage({prompt,fetchImpl,key}){
  if(typeof prompt!=='string'||!prompt.trim()||prompt.length>2500)throw new Error('INVALID_IMAGE_PROMPT');
  const result=await metaRequest('/images/generations',{model:MODEL_IDS.image,prompt:prompt.trim(),n:1,response_format:'url'},{key,fetchImpl,timeoutMs:60000});
  const image=result?.data?.[0];if(!image?.url&&!image?.b64_json)throw new Error('META_EMPTY_IMAGE_RESPONSE');
- return {provider:'META_MODEL_API',model:MODEL_IDS.image,imageUrl:image.url||null,imageBase64:image.b64_json||null,reviewRequired:true};
+ return {provider:'META_MODEL_API',model:MODEL_IDS.image,imageUrl:image.url||null,imageBase64:image.b64_json||null,reviewRequired:true,requestId:result.id||null};
 }

@@ -12,14 +12,15 @@ npm run dev
 
 ## Included
 - Unified OS shell: Workspace, Business, MARI AI, Growth, Creative, Social, Activity.
-- Business intake including URL reference, objective, audience and first-party facts.
+- Business intake with objective, audience and first-party facts; public website text is retrieved server-side with SSRF guards, redirect re-validation, and size/time caps.
 - `POST /api/mission` outputs a structured Growth → Creative → Social **draft** with human approval and measurement statuses.
+- Mission evidence records retrieval status, source URL, content hash, and citations; blocked or failed retrieval is reported, never silent.
 - Deterministic demo provider; strict evidence labels and no fake conversion data or invented successful campaign actions.
 - No public secrets, customer assets, production database, social publishing integration, or hardcoded tenant identifiers.
 
 ## Not implemented
 - Production-validated authentication/multi-tenancy, persisted mission state and secure approvals.
-- Website fetching, brand extraction or multimodal media analysis.
+- Brand extraction or multimodal media analysis.
 - Meta model inference, creative asset generation, campaign publishing, Meta Graph API metrics.
 - The above must be built and tested before the product is represented as a complete autonomous Meta-powered OS.
 

@@ -12,12 +12,20 @@ Verified from Meta documentation (2026-10-27):
 3. **Muse Image 1.0**: `generateWithMuseImage` via `POST /v1/images/generations`, returning a temporary signed URL or base64. Must save a verified media asset to isolated storage before later use.
 4. **Meta status API**: `GET /api/meta/status` returns model readiness without exposing secrets. `POST /api/meta/reason` is guarded and disabled by default.
 
+## Phase 1.5 Live Inference Verification Status (2026-10-27)
+- **Muse Spark 1.3 (`muse-spark-1.3`)**: **VERIFIED LIVE** against real Meta Model API (`https://api.meta.ai/v1/responses`).
+  - Request ID: `resp_6ae0ff1b9215a46fe33a464a`
+  - Latency: 4,710 ms
+  - Result: Real contextual AI response received with grounded reasoning output.
+  - Server-side isolation: Zero client exposure; credential retained strictly server-side.
+- **Muse Wonder 1.0 (`muse-wonder-1.0`)**: Adapter implemented (`reasonWithMeta({mode:'wonder'})` using high effort reasoning and auto summary). Contract tests passing. Minimal live probe prepared; awaiting explicit authorization before live invocation.
+- **Muse Image 1.0 (`muse-image-1.0`)**: Adapter implemented (`generateWithMuseImage` via `POST /v1/images/generations`). Contract tests passing. Minimal live probe prepared; awaiting explicit authorization before live invocation.
+
 ## Pending real integration
 - **SAM 3.1**: hosted via `POST /v1/responses` for text-prompted image/video segmentation. Implement verified media payload and masks parser against official samples before enabling. Reserve it for product cutouts, visual inspection and asset preparation; it does *not* measure marketing effectiveness.
 - **Muse Spark Open**: self-hosted/hosted third-party inference adapter (not a Meta Model API model). Requires separate dedicated inference compute and endpoint, license/security review and explicit costs. No deployment has been provisioned.
 - **Muse Code**: developer CLI, **not** a MARI runtime. On Windows PowerShell, Meta currently documents `irm https://dev.meta.ai/install.ps1 | iex`; on macOS/Linux `curl -fsSL https://dev.meta.ai/install.sh | sh`. Review downloaded scripts before executing; authenticate through Meta's supported sign-in. Do not commit keys or bind Muse Code to production `alinew`.
-- **Real inference** is not yet tested because this environment has no project Model API key provisioned.
-- **Live public app** remains a deterministic demo. No frontend calls to paid inference exist yet, intentionally.
+- **Live public app** remains a deterministic demo. Public inference route `/api/meta/reason` remains strictly disabled by default (`META_REASONING_API_ENABLED=false`).
 
 ## Credential provisioning
 At https://dev.meta.ai, create a Model API key for the appropriate hackathon project and configure these **only in the new isolated preview Vercel project**, never in public GitHub, the browser, or production Ralion:
