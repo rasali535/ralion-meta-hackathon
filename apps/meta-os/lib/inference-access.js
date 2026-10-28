@@ -49,3 +49,16 @@ export function recordInferenceUsage({organizationId,workspaceId,mode='spark',re
     throw e;
   }
 }
+export function reserveInferenceUsage({organizationId,workspaceId,mode='spark',now=Date.now(),ledger=globalBudgetLedger}={}){
+  const tenant=tenantContext({organizationId,workspaceId});
+  try{
+    return ledger.reserve(tenantBudgetKey(tenant.organizationId,tenant.workspaceId),{model:mode,now});
+  }catch(e){
+    if(String(e&&e.message)==='BUDGET_EXCEEDED')throw httpError(429,{error:'Workspace inference budget exceeded',remainingUnits:0});
+    throw e;
+  }
+}
+export function settleInferenceUsage(receipt,{requestId=null,ok=true,ledger=globalBudgetLedger}={}){
+  if(ok)return ledger.confirm(receipt,{requestId});
+  return ledger.release(receipt);
+}

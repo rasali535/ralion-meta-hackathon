@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server';
 import {missionInput,planMission,attachApproval} from '../../../lib/mission';
 import {ingestWebsite} from '../../../lib/website';
 import {missionLiveConfig,resolveMariMode,diagnoseWithMari,sanitizeMariErrorCode} from '../../../lib/mari';
-import {checkInferenceAccess,recordInferenceUsage} from '../../../lib/inference-access';
+import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '../../../lib/inference-access';
 import {verifyAccessToken,tenantContext} from '../../../lib/auth';
 // Public demo route: website ingestion is SSRF/pinned-DNS/size/time-capped
 // with a kill switch. Live MARI needs explicit flags plus a presented demo
@@ -31,8 +31,12 @@ export async function POST(request){
         if(mariMode){
           try{
             const access=checkInferenceAccess({presentedToken:presented,mode:mariMode});
-            const diagnosis=await diagnoseWithMari(fields,{mode:mariMode});
-            const usage=recordInferenceUsage({organizationId:access.organizationId,workspaceId:access.workspaceId,mode:mariMode,requestId:diagnosis.requestId});
+            const receipt=reserveInferenceUsage({organizationId:access.organizationId,workspaceId:access.workspaceId,mode:mariMode});
+            let diagnosis;
+            try{
+              diagnosis=await diagnoseWithMari(fields,{mode:mariMode});
+            }catch(e){try{settleInferenceUsage(receipt,{ok:false});}catch{}throw e;}
+            const usage=settleInferenceUsage(receipt,{requestId:diagnosis.requestId,ok:true});
             mission.mode='LIVE_MARI';
             mission.mariReasoning={...diagnosis,organizationId:access.organizationId,workspaceId:access.workspaceId,remainingBudget:usage.remainingUnits};
           }catch(e){

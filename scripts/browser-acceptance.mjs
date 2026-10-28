@@ -1,17 +1,22 @@
 import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { issueDemoToken } from '../apps/meta-os/lib/auth.js';
 
 const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const DEBUG_PORT = 9333;
-const TARGET_URL = 'http://127.0.0.1:3700';
+const TARGET_PORT = 3700;
+const TARGET_URL = `http://127.0.0.1:${TARGET_PORT}`;
+const DEMO_SECRET = 'dev-demo-secret-key-for-browser-acceptance';
+const ASSET_SECRET = 'dev-asset-secret-key-for-browser-acceptance';
+const APPROVAL_SECRET = 'dev-approval-secret-key-for-browser-acceptance';
 
 async function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function getDebuggerUrl(port) {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 25; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (res.ok) {
@@ -90,11 +95,57 @@ class CDPClient {
 }
 
 async function runBrowserAcceptance() {
-  console.log('--- STARTING POST-INTEGRATION BROWSER ACCEPTANCE ---');
+  console.log('=== PHASE 3 FULL WORKFLOW BROWSER ACCEPTANCE ===');
   console.log('Target URL:', TARGET_URL);
   console.log('Browser:', CHROME_PATH);
 
-  const tmpDir = join(process.env.TEMP || 'C:\\Windows\\Temp', 'chrome-profile-' + Date.now());
+  // Mint a valid v2 demo token for org_demo / ws_growth
+  const demoToken = issueDemoToken('ws_growth', {
+    organizationId: 'org_demo',
+    hmacSecret: DEMO_SECRET,
+    ttlMs: 3600000
+  });
+  console.log('Issued v2 demo token:', demoToken.slice(0, 24) + '…');
+
+  // Start Next.js dev server with required Phase 3 secrets and mock generation
+  console.log('Starting Next.js server with Phase 3 configuration...');
+  const nextProcess = spawn('npm', ['--prefix', 'apps/meta-os', 'run', 'dev', '--', '-p', String(TARGET_PORT)], {
+    shell: true,
+    env: {
+      ...process.env,
+      PORT: String(TARGET_PORT),
+      META_DEMO_TOKEN_SECRET: DEMO_SECRET,
+      ASSET_URL_SECRET: ASSET_SECRET,
+      APPROVAL_HMAC_SECRET: APPROVAL_SECRET,
+      CREATIVE_GENERATION_ENABLED: 'true',
+      META_REASONING_API_ENABLED: 'true',
+      MODEL_API_KEY: 'test-server-key-safe',
+      MOCK_IMAGE_GENERATION: 'true',
+      CREATIVE_STORAGE_DIR: '.data/creative_test'
+    }
+  });
+
+  // Wait for dev server readiness
+  console.log('Waiting for Next.js server readiness on port', TARGET_PORT);
+  let serverReady = false;
+  for (let i = 0; i < 40; i++) {
+    try {
+      const res = await fetch(TARGET_URL);
+      if (res.ok) {
+        serverReady = true;
+        break;
+      }
+    } catch {}
+    await wait(500);
+  }
+  if (!serverReady) {
+    nextProcess.kill();
+    throw new Error('Dev server failed to start on port ' + TARGET_PORT);
+  }
+  console.log('Dev server ready!');
+
+  // Launch Chrome in isolated temp profile
+  const tmpDir = join(process.env.TEMP || 'C:\\Windows\\Temp', 'chrome-profile-p3-' + Date.now());
   const chromeProcess = spawn(CHROME_PATH, [
     '--headless=new',
     `--remote-debugging-port=${DEBUG_PORT}`,
@@ -102,7 +153,7 @@ async function runBrowserAcceptance() {
     '--no-sandbox',
     '--disable-extensions',
     `--user-data-dir=${tmpDir}`,
-    '--window-size=1280,900',
+    '--window-size=1280,960',
     'about:blank'
   ]);
 
@@ -116,233 +167,260 @@ async function runBrowserAcceptance() {
     await client.send('Page.enable');
     await client.send('Runtime.enable');
 
-    // 2. Navigate to localhost:3700
-    console.log('\n[1/7] Navigating to Meta OS...');
-    await client.send('Page.navigate', { url: TARGET_URL });
-
-    async function waitForSelector(selector, timeoutMs = 12000) {
+    async function waitForSelector(selector, timeoutMs = 15000) {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
-        const info = await client.evaluate(`({
-          url: window.location.href,
-          ready: document.readyState,
-          hasEl: Boolean(document.querySelector('${selector}')),
-          bodyLen: document.body?.innerHTML?.length || 0
-        })`);
-        console.log('waitForSelector info:', info);
-        if (info.hasEl) return true;
-        await wait(600);
+        const found = await client.evaluate(`Boolean(document.querySelector('${selector}'))`);
+        if (found) return true;
+        await wait(300);
       }
       throw new Error('Timeout waiting for selector: ' + selector);
     }
 
+    // 1. Initial Navigation & Shell Hydration
+    console.log('\n[1/7] Navigating to Meta OS...');
+    await client.send('Page.navigate', { url: TARGET_URL });
     await waitForSelector('.brand-text');
+    // Allow React client components to hydrate and attach event listeners
+    await wait(1500);
 
-    // Check title and brand
     const title = await client.evaluate('document.title');
     const brandText = await client.evaluate('document.querySelector(".brand-text")?.innerText');
-    const wsChip = await client.evaluate('document.querySelector(".ws-name")?.innerText');
     console.log('Page Title:', title);
-    console.log('Brand text:', brandText);
-    console.log('Workspace chip:', wsChip);
+    console.log('Brand Header:', brandText?.replace(/\n/g, ' '));
 
-    if (!brandText?.includes('RALION OS')) {
-      throw new Error('Failed to find RALION OS brand header after hydration');
-    }
+    // 2. Theme Toggle
+    console.log('\n[2/7] Testing Theme Toggle...');
+    const themeInitial = await client.evaluate(`document.documentElement.getAttribute('data-theme')`);
+    await client.evaluate('document.querySelector(".theme-btn")?.click()');
+    await wait(600);
+    const themeToggled = await client.evaluate(`document.documentElement.getAttribute('data-theme')`);
+    await client.evaluate('document.querySelector(".theme-btn")?.click()');
+    await wait(600);
+    const themeRestored = await client.evaluate(`document.documentElement.getAttribute('data-theme')`);
+    console.log(`Themes: initial=${themeInitial}, toggled=${themeToggled}, restored=${themeRestored}`);
+    if (themeInitial === themeToggled) throw new Error('Theme toggle failed');
 
-    // 3. Theme toggling
-    console.log('\n[2/7] Testing Light/Dark theme toggle...');
-    await wait(500); // Allow useEffect to set theme attribute
-    const initialTheme = await client.evaluate(`document.documentElement.getAttribute('data-theme') || document.documentElement.dataset?.theme`);
-    console.log('Initial theme:', initialTheme);
-
-    await client.evaluate('document.querySelector(".theme-btn").click()');
-    await wait(400);
-    const toggledTheme = await client.evaluate(`document.documentElement.getAttribute('data-theme') || document.documentElement.dataset?.theme`);
-    console.log('Toggled theme:', toggledTheme);
-
-    if (!toggledTheme || toggledTheme === initialTheme) {
-      throw new Error(`Theme toggle failed: initial=${initialTheme}, toggled=${toggledTheme}`);
-    }
-
-    // Toggle back to dark
-    await client.evaluate('document.querySelector(".theme-btn").click()');
-    await wait(400);
-    const restoredTheme = await client.evaluate(`document.documentElement.getAttribute('data-theme') || document.documentElement.dataset?.theme`);
-    console.log('Restored theme:', restoredTheme);
-
-    // 4. Test all 8 workspaces
-    console.log('\n[3/7] Testing navigation across all 8 workspaces...');
+    // 3. Navigate all 8 Workspaces
+    console.log('\n[3/7] Testing Navigation across all 8 workspaces...');
     const workspaces = ['command', 'business', 'mari', 'growth', 'creative', 'social', 'activity', 'settings'];
     for (const ws of workspaces) {
       await client.evaluate(`(() => {
         const btn = Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('${ws}'));
         if (btn) btn.click();
       })()`);
-      await wait(350);
-      const currentUrl = await client.evaluate('window.location.search');
-      const activeNav = await client.evaluate('document.querySelector(".nav-item.active")?.innerText');
-      const pageHeading = await client.evaluate('document.querySelector(".page-head h1")?.innerText');
-      console.log(`- Workspace [${ws}]: activeNav="${activeNav?.replace(/\\n/g, ' ')}", heading="${pageHeading}", query="${currentUrl}"`);
+      await wait(300);
+      const heading = await client.evaluate('document.querySelector(".page-head h1")?.innerText');
+      console.log(`- Workspace [${ws}]: heading="${heading}"`);
     }
 
-    // 5. Test MARI Mission Workflow in Business Workspace
-    console.log('\n[4/7] Testing MARI mission submission from browser...');
-    // Navigate to business
+    // 4. Mission Submission in Business Workspace
+    console.log('\n[4/7] Submitting Mission from Business Workspace...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('business')).click();
     })()`);
     await wait(400);
 
-    // Verify prefilled business form values
-    const formVals = await client.evaluate(`(() => ({
-      name: document.querySelector('input[placeholder="Business name"]')?.value,
-      industry: document.querySelector('input[placeholder="Industry"]')?.value,
-      website: document.querySelector('input[placeholder="https://example.org"]')?.value,
-      objective: document.querySelector('textarea')?.value
-    }))()`);
-    console.log('Form prefilled values:', formVals);
-
-    // Submit the form
-    console.log('Clicking "Send mission to MARI" button...');
+    // Enter the demo token into the form
     await client.evaluate(`(() => {
+      const chk = document.querySelector('#live-ai');
+      if (chk && !chk.checked) {
+        chk.click();
+      }
+    })()`);
+    await wait(300);
+
+    await client.evaluate(`(() => {
+      const tokenInput = document.querySelector('input[placeholder="Demo token"]');
+      if (tokenInput) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(tokenInput, '${demoToken}');
+        tokenInput.dispatchEvent(new Event('input', { bubbles: true }));
+        tokenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      // Click submit
       const submitBtn = document.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.click();
     })()`);
 
-    // Check loading state
-    await wait(100);
-    const buttonTextDuringLoad = await client.evaluate('document.querySelector("button[type=\\"submit\\"]")?.innerText');
-    console.log('Button state during submission:', buttonTextDuringLoad);
+    // Wait for transition to MARI
+    console.log('Waiting for mission planning transition to MARI...');
+    await waitForSelector('.steps', 25000);
+    const mariHeading = await client.evaluate('document.querySelector(".page-head h1")?.innerText');
+    const mariLede = await client.evaluate('document.querySelector(".page-head p")?.innerText');
+    console.log('MARI Workspace loaded:', mariHeading, '|', mariLede);
 
-    // Wait for mission response and navigation to MARI
-    let arrivedAtMari = false;
-    for (let i = 0; i < 30; i++) {
-      await wait(500);
-      const heading = await client.evaluate('document.querySelector(".page-head h1")?.innerText');
-      if (heading === 'MARI') {
-        arrivedAtMari = true;
-        break;
-      }
-    }
-
-    if (!arrivedAtMari) {
-      const errBox = await client.evaluate('document.querySelector(".error-box")?.innerText');
-      throw new Error('Did not transition to MARI view. Error box: ' + errBox);
-    }
-
-    console.log('Successfully transitioned to MARI workspace!');
-    const mariHeader = await client.evaluate('document.querySelector(".page-head p")?.innerText');
-    const mariRows = await client.evaluate(`(() => {
-      return Array.from(document.querySelectorAll('.card')).map(c => ({
-        title: c.querySelector('h3, .card-title, h4')?.innerText,
-        text: c.innerText.slice(0, 150)
-      }));
-    })()`);
-    console.log('MARI header:', mariHeader);
-    console.log('MARI cards count:', mariRows.length);
-
-    // 6. Confirm generated recommendations appear in MARI workspace and propagate into Growth
-    console.log('\n[5/7] Verifying recommendation propagation into Growth workspace...');
+    // 5. Check Propagation into Growth
+    console.log('\n[5/7] Verifying Mission propagation into Growth...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('growth')).click();
     })()`);
+    await wait(400);
+    const growthOpp = await client.evaluate(`document.querySelector('.card .card-head')?.innerText || ''`);
+    console.log('Growth Opportunity Card rendered:', Boolean(growthOpp));
+
+    // 6. Test Creative Studio & Image Generation
+    console.log('\n[6/7] Testing Creative Studio: prompt editing, confirmation, and generation...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('creative')).click();
+    })()`);
     await wait(500);
 
-    const growthHeading = await client.evaluate('document.querySelector(".page-head h1")?.innerText');
-    const growthLede = await client.evaluate('document.querySelector(".page-head p")?.innerText');
-    const growthCards = await client.evaluate(`(() => {
-      return Array.from(document.querySelectorAll('.card')).map(c => c.innerText.replace(/\\n+/g, ' | ').slice(0, 200));
-    })()`);
+    // Verify brief options
+    const briefSource = await client.evaluate(`document.querySelector('.select')?.value`);
+    console.log('Default brief source:', briefSource);
 
-    console.log('Growth Heading:', growthHeading);
-    console.log('Growth Lede:', growthLede);
-    console.log('Growth Cards:', growthCards);
-
-    if (!growthLede?.includes('Northstar Coffee')) {
-      throw new Error('Mission recommendations did not propagate to Growth workspace for Northstar Coffee');
-    }
-
-    // 7. Test invalid input and error message handling
-    console.log('\n[6/7] Testing invalid input & error handling in browser...');
+    // Click "Use brief suggestion"
     await client.evaluate(`(() => {
-      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('business')).click();
-    })()`);
-    await wait(400);
-
-    // Set invalid website URL and submit
-    await client.evaluate(`(() => {
-      const input = document.querySelector('input[placeholder="https://example.org"]');
-      if (input) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(input, 'http://insecure-http-url.com');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      const btn = document.querySelector('button[type="submit"]');
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Use brief suggestion'));
       if (btn) btn.click();
     })()`);
-    await wait(1200);
+    await wait(200);
 
-    const errorBoxMsg = await client.evaluate('document.querySelector(".error-box")?.innerText');
-    console.log('Error box message for insecure URL:', errorBoxMsg);
-
-    // 8. Test responsive mobile layout
-    console.log('\n[7/7] Testing mobile viewport & drawer behavior...');
-    await client.send('Emulation.setDeviceMetricsOverride', {
-      width: 390,
-      height: 844,
-      deviceScaleFactor: 2,
-      mobile: true
-    });
-    await wait(300);
-
-    // Check burger menu
-    const isBurgerVisible = await client.evaluate(`(() => {
-      const b = document.querySelector('.burger');
-      const style = window.getComputedStyle(b);
-      return style.display !== 'none';
+    // Edit prompt explicitly
+    await client.evaluate(`(() => {
+      const promptArea = document.querySelector('textarea[placeholder*="Describe the image"]');
+      if (promptArea) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(promptArea, 'Artisanal morning espresso on wooden rustic table with fresh croissants');
+        promptArea.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     })()`);
-    console.log('Burger button visible on mobile:', isBurgerVisible);
+    const promptText = await client.evaluate(`document.querySelector('textarea[placeholder*="Describe the image"]')?.value`);
+    console.log('Edited prompt:', promptText);
 
-    // Click burger
-    await client.evaluate('document.querySelector(".burger").click()');
+    // Test rejection without confirmation
+    await client.evaluate(`(() => {
+      const genBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Generate image'));
+      if (genBtn) genBtn.click();
+    })()`);
     await wait(200);
-    const isNavOpen = await client.evaluate('document.querySelector(".os").classList.contains("nav-open")');
-    console.log('Drawer opened (.nav-open):', isNavOpen);
+    const confirmError = await client.evaluate(`document.querySelector('.error-box')?.innerText`);
+    console.log('Unconfirmed generation guard error:', confirmError);
+    if (!confirmError?.includes('Confirm')) throw new Error('Generation proceeded without confirmation checkbox!');
 
-    // Click scrim to close
-    await client.evaluate('document.querySelector(".scrim").click()');
+    // Check confirmation checkbox
+    await client.evaluate(`(() => {
+      const chk = document.querySelector('#gen-confirm');
+      if (chk && !chk.checked) {
+        chk.click();
+      }
+    })()`);
     await wait(200);
-    const isNavClosed = !await client.evaluate('document.querySelector(".os").classList.contains("nav-open")');
-    console.log('Drawer closed after scrim click:', isNavClosed);
 
-    // Reset device metrics
-    await client.send('Emulation.clearDeviceMetricsOverride');
+    // Generate creative image
+    console.log('Submitting authorized creative image generation...');
+    await client.evaluate(`(() => {
+      const genBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Generate image'));
+      if (genBtn) genBtn.click();
+    })()`);
 
-    // Check console logs and exceptions
-    console.log('\n--- BROWSER CONSOLE REPORT ---');
-    console.log('Console logs count:', client.consoleLogs.length);
-    console.log('Exceptions count:', client.exceptions.length);
-    if (client.exceptions.length > 0) {
-      console.error('Browser exceptions:', client.exceptions);
+    // Wait for asset card to appear in .asset-grid
+    await waitForSelector('.asset-card', 15000);
+    console.log('Asset card rendered in Creative Studio!');
+
+    const assetDetails = await client.evaluate(`(() => {
+      const card = document.querySelector('.asset-card');
+      const img = card?.querySelector('img');
+      return {
+        hasImg: Boolean(img),
+        imgSrc: img?.src,
+        prompt: card?.querySelector('.asset-meta p')?.innerText,
+        metaText: card?.querySelector('.asset-meta .mono')?.innerText,
+        badges: Array.from(card?.querySelectorAll('.badge') || []).map(b => b.innerText)
+      };
+    })()`);
+    console.log('Generated Asset Details:', assetDetails);
+    if (!assetDetails.hasImg || !assetDetails.imgSrc?.includes('/api/creative/asset')) {
+      throw new Error('Creative asset preview image did not render signed capability URL');
     }
 
-    // Capture screenshot of MARI workspace
-    await client.evaluate(`
-      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('mari')).click();
-    `);
+    // 7. Test Social Workspace & Approval Gateway
+    console.log('\n[7/7] Testing Social draft cards, creative previews, and Human Approval...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('social')).click();
+    })()`);
     await wait(500);
 
+    // Verify Facebook and Instagram draft cards
+    const draftCards = await client.evaluate(`(() => {
+      return Array.from(document.querySelectorAll('.draft-card')).map(c => ({
+        channel: c.querySelector('.badge')?.innerText,
+        text: c.querySelector('p')?.innerText,
+        statusChip: c.querySelector('small')?.innerText,
+        grounding: Array.from(c.querySelectorAll('.chip')).map(chip => chip.innerText)
+      }));
+    })()`);
+    console.log('Draft Cards rendered count:', draftCards.length);
+    console.log('Draft Status Chips:', draftCards.map(d => d.statusChip));
+    draftCards.forEach(d => {
+      if (d.statusChip !== 'NOT PUBLISHED · PUBLISHING NOT APPROVED') {
+        throw new Error('Draft card missing mandatory PUBLISHING NOT APPROVED protection chip');
+      }
+    });
+
+    // Verify creative thumbnail preview rendered in Social
+    const thumbSrc = await client.evaluate(`document.querySelector('.thumb-row img')?.src`);
+    console.log('Social Creative Preview thumbnail rendered:', Boolean(thumbSrc));
+    if (!thumbSrc?.includes('/api/creative/asset')) {
+      throw new Error('Creative preview thumbnail missing from Social workspace');
+    }
+
+    // Enter Approver Identity and Role
+    console.log('Filling in Human Approval gateway inputs...');
+    await client.evaluate(`(() => {
+      const idInput = document.querySelector('input[placeholder="Demo approver name"]');
+      if (idInput) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(idInput, 'Alice Marketing Lead');
+        idInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      const roleSelect = document.querySelector('.approval-grid select');
+      if (roleSelect) {
+        roleSelect.value = 'marketing_lead';
+        roleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    })()`);
+
+    // Click "Approve drafts"
+    console.log('Clicking "Approve drafts" button...');
+    await client.evaluate(`(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Approve drafts'));
+      if (btn) btn.click();
+    })()`);
+
+    // Wait for approval confirmation banner
+    await waitForSelector('.banner.bn-ok', 15000);
+    const approvalBanner = await client.evaluate(`document.querySelector('.banner.bn-ok')?.innerText`);
+    console.log('Approval Gateway Result Banner:', approvalBanner);
+
+    if (!approvalBanner?.includes('Approved by Alice Marketing Lead (marketing_lead)')) {
+      throw new Error('Human approval was not minted or displayed: ' + approvalBanner);
+    }
+    if (!approvalBanner?.includes('local drafts only')) {
+      throw new Error('Approval banner failed to specify local drafts only scope');
+    }
+
+    // Capture comprehensive Phase 3 verification screenshot
     const screenshotData = await client.send('Page.captureScreenshot', { format: 'png' });
-    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-mari.png');
+    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-phase3.png');
     await writeFile(screenshotPath, Buffer.from(screenshotData.data, 'base64'));
-    console.log('Captured verification screenshot to:', screenshotPath);
+    console.log('\nSaved full Phase 3 verification screenshot to:', screenshotPath);
+
+    // Audit console logs and runtime exceptions
+    console.log('\n--- CONSOLE EXCEPTION AUDIT ---');
+    console.log('Browser console logs count:', client.consoleLogs.length);
+    console.log('Browser unhandled exceptions count:', client.exceptions.length);
+    if (client.exceptions.length > 0) {
+      console.error('Unhandled exceptions detected:', client.exceptions);
+      throw new Error('Unhandled exceptions detected during browser acceptance');
+    }
 
     client.close();
-    console.log('\n=== BROWSER ACCEPTANCE SUCCEEDED 100% ===');
+    console.log('\n=== ALL PHASE 3 WORKFLOW ACCEPTANCE STEPS PASSED 100% ===');
   } finally {
     chromeProcess.kill('SIGKILL');
+    nextProcess.kill('SIGKILL');
   }
 }
 

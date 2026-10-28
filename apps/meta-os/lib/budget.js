@@ -91,6 +91,42 @@ export function createBudgetLedger({ dailyLimits = DEFAULT_DAILY_LIMITS, clock =
       };
     },
 
+    reserve(workspaceId, { model = 'spark', costUnits = 1, now = clock() } = {}) {
+      const ws = String(workspaceId || '').trim();
+      if (!ws) throw new Error('BUDGET_WORKSPACE_REQUIRED');
+      const units = Number(costUnits);
+      if (!Number.isFinite(units) || units < 1 || Math.floor(units) !== units) throw new Error('BUDGET_COST_INVALID');
+      const dayKey = getDayKey(now);
+      const usage = getWorkspaceDayUsage(ws, dayKey);
+      const limit = dailyLimits[model] ?? dailyLimits.default;
+      const current = usage[model] ?? 0;
+      if ((current + units) > limit) throw new Error('BUDGET_EXCEEDED');
+      usage[model] = (usage[model] || 0) + units;
+      usage.total = (usage.total || 0) + units;
+      return { workspaceId: ws, model, dayKey, costUnits: units, newUsage: usage[model], remainingUnits: Math.max(0, limit - usage[model]), dailyLimit: limit };
+    },
+
+    confirm(receipt, { requestId = null } = {}) {
+      const r = receipt && typeof receipt === 'object' ? receipt : null;
+      if (!r || !r.workspaceId || !r.dayKey || !r.model) throw new Error('BUDGET_RECEIPT_INVALID');
+      return { workspaceId: r.workspaceId, model: r.model, dayKey: r.dayKey, requestId: requestId || null, newUsage: r.newUsage, remainingUnits: r.remainingUnits, dailyLimit: r.dailyLimit };
+    },
+
+    release(receipt = {}) {
+      const r = receipt && typeof receipt === 'object' ? receipt : null;
+      if (!r || !r.workspaceId || !r.dayKey || !r.model) throw new Error('BUDGET_RECEIPT_INVALID');
+      const units = Number(r.costUnits) || 0;
+      const ws = ledger.get(r.workspaceId);
+      const usage = ws && ws.get(r.dayKey);
+      if (usage && Number.isFinite(usage[r.model])) {
+        usage[r.model] = Math.max(0, usage[r.model] - units);
+        usage.total = Math.max(0, (usage.total || 0) - units);
+      }
+      const limit = dailyLimits[r.model] ?? dailyLimits.default;
+      const current = usage ? (usage[r.model] || 0) : 0;
+      return { workspaceId: r.workspaceId, model: r.model, dayKey: r.dayKey, remainingUnits: Math.max(0, limit - current), dailyLimit: limit };
+    },
+
     reset() {
       ledger.clear();
     }

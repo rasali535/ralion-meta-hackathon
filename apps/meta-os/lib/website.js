@@ -121,17 +121,18 @@ export async function pinnedLookupFor(hostname,lookupImpl){
   };
   return {lookup,addresses:pinned.map(p=>p.address)};
 }
-function nodeHttpsFetch(href,{lookup,timeoutMs,maxBytes,headers,signal,requestImpl}){
+function nodeHttpsFetch(href,{lookup,timeoutMs,maxBytes,headers,signal,requestImpl,binary=false,errors={}}){
+  const codes={timeout:'WEBSITE_TIMEOUT',tooLarge:'WEBSITE_RESPONSE_TOO_LARGE',fetch:'WEBSITE_FETCH_FAILED',...errors};
   return new Promise((resolve,reject)=>{
     let done=false;let req=null;
-    const timer=setTimeout(()=>finish('WEBSITE_TIMEOUT'),timeoutMs);
+    const timer=setTimeout(()=>finish(codes.timeout),timeoutMs);
     const cleanup=()=>{clearTimeout(timer);if(signal)signal.removeEventListener('abort',onAbort);};
     const finish=(code,result)=>{
       if(done)return;done=true;cleanup();
       if(req){try{req.destroy();}catch{}}
       if(code)reject(new Error(code));else resolve(result);
     };
-    const onAbort=()=>finish('WEBSITE_TIMEOUT');
+    const onAbort=()=>finish(codes.timeout);
     const getHeader=(raw,k)=>{const val=raw?raw[String(k).toLowerCase()]:undefined;return Array.isArray(val)?val[0]:(val==null?null:String(val));};
     try{
       req=requestImpl(href,{method:'GET',headers,lookup},(res)=>{
@@ -143,15 +144,15 @@ function nodeHttpsFetch(href,{lookup,timeoutMs,maxBytes,headers,signal,requestIm
           return;
         }
         const chunks=[];let total=0;
-        res.on('data',(c)=>{const n=c?c.length:0;total+=n;if(total>maxBytes){finish('WEBSITE_RESPONSE_TOO_LARGE');return;}if(n)chunks.push(c);});
-        res.on('end',()=>finish(null,{status,headers:wrapped,body:null,ok:status>=200&&status<300,text:async()=>Buffer.concat(chunks).toString('utf8')}));
-        res.on('error',()=>finish('WEBSITE_FETCH_FAILED'));
+        res.on('data',(c)=>{const n=c?c.length:0;total+=n;if(total>maxBytes){finish(codes.tooLarge);return;}if(n)chunks.push(c);});
+        res.on('end',()=>{const payload={status,headers:wrapped,body:null,ok:status>=200&&status<300,text:async()=>Buffer.concat(chunks).toString('utf8')};if(binary)payload.buffer=Buffer.concat(chunks);finish(null,payload);});
+        res.on('error',()=>finish(codes.fetch));
       });
-    }catch{finish('WEBSITE_FETCH_FAILED');return;}
-    if(!req||typeof req.on!=='function'||typeof req.end!=='function'){finish('WEBSITE_FETCH_FAILED');return;}
-    req.on('error',()=>finish('WEBSITE_FETCH_FAILED'));
-    if(signal){if(signal.aborted)finish('WEBSITE_TIMEOUT');else signal.addEventListener('abort',onAbort,{once:true});}
-    try{req.end();}catch{finish('WEBSITE_FETCH_FAILED');}
+    }catch{finish(codes.fetch);return;}
+    if(!req||typeof req.on!=='function'||typeof req.end!=='function'){finish(codes.fetch);return;}
+    req.on('error',()=>finish(codes.fetch));
+    if(signal){if(signal.aborted)finish(codes.timeout);else signal.addEventListener('abort',onAbort,{once:true});}
+    try{req.end();}catch{finish(codes.fetch);}
   });
 }
 export function createSecureFetch({lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl=(url,options,cb)=>httpsRequest(url,options,cb)}={}){
@@ -164,6 +165,31 @@ export function createSecureFetch({lookupImpl=(host,opts)=>dnsLookup(host,opts),
     const maxBytes=Number(init.maxBytes)>0?Math.floor(Number(init.maxBytes)):WEBSITE_INGEST_LIMITS.maxBytes;
     return nodeHttpsFetch(u.href,{lookup,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'},signal:init.signal,requestImpl});
   };
+}
+export const MEDIA_FETCH_LIMITS=Object.freeze({timeoutMs:20000,maxBytes:8*1024*1024,maxRedirects:3});
+const MEDIA_ERRORS=Object.freeze({timeout:'MEDIA_TIMEOUT',tooLarge:'MEDIA_RESPONSE_TOO_LARGE',fetch:'MEDIA_FETCH_FAILED'});
+export async function fetchPinnedMedia(targetUrl,{lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl,timeoutMs=MEDIA_FETCH_LIMITS.timeoutMs,maxBytes=MEDIA_FETCH_LIMITS.maxBytes,maxRedirects=MEDIA_FETCH_LIMITS.maxRedirects,allowedTypes=['image/png','image/jpeg','image/webp','image/gif']}={}){
+  const req=requestImpl||((url,options,cb)=>httpsRequest(url,options,cb));
+  let current=assertSafeTargetUrl(targetUrl);
+  let hops=0;
+  for(;;){
+    const {lookup}=await pinnedLookupFor(current.hostname,lookupImpl);
+    const res=await nodeHttpsFetch(current.href,{lookup,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon media fetcher)','accept':'image/*'},requestImpl:req,binary:true,errors:MEDIA_ERRORS});
+    if(res.status>=300&&res.status<400){
+      if(hops>=maxRedirects)throw new Error('MEDIA_TOO_MANY_REDIRECTS');
+      const location=res.headers&&typeof res.headers.get==='function'?res.headers.get('location'):'';
+      if(!location)throw new Error('MEDIA_REDIRECT_BLOCKED');
+      let next;
+      try{next=new URL(location,current.href);}catch{throw new Error('MEDIA_REDIRECT_BLOCKED');}
+      try{current=assertSafeTargetUrl(next.href);}catch{throw new Error('MEDIA_REDIRECT_BLOCKED');}
+      hops++;
+      continue;
+    }
+    if(!res.ok)throw new Error('MEDIA_REQUEST_FAILED_'+res.status);
+    const ct=String(res.headers&&typeof res.headers.get==='function'?(res.headers.get('content-type')||''):'').split(';')[0].trim().toLowerCase();
+    if(!allowedTypes.includes(ct))throw new Error('MEDIA_UNSUPPORTED_CONTENT');
+    return {contentType:ct,bytes:res.buffer,sourceUrl:current.href,redirectHops:hops};
+  }
 }
 async function discardBody(response){
   const body=response&&response.body;

@@ -22,7 +22,7 @@ test('validates mission input before any ingestion',()=>{
 });
 test('keeps reference-only behavior without evidence',()=>{
   const m=planMission({...base,website:'https://example.org'});
-  assert.equal(m.schemaVersion,'1.1');
+  assert.equal(m.schemaVersion,'1.2');
   assert.equal(m.evidence.websiteRetrieved,false);
   assert.equal(m.evidence.websiteStatus,'REFERENCE_ONLY_NOT_CRAWLED');
   assert.equal(m.evidence.site,null);

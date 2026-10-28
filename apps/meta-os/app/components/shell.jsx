@@ -24,6 +24,7 @@ export default function Shell({initialView}){
   const [wsName,setWsNameState]=useState('Demo workspace');
   const [business,setBusiness]=useState(starterBusiness);
   const [mission,setMission]=useState(null);
+  const [assets,setAssets]=useState([]);
   const [metaStatus,setMetaStatus]=useState(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
@@ -68,6 +69,22 @@ export default function Shell({initialView}){
     }catch(err){setError(err.message||'Mission failed');}
     finally{setLoading(false);}
   }
+  function handleGenerated(entry,missionId){
+    setAssets(prev=>[...prev.filter(e=>e.asset.assetId!==entry.asset.assetId),entry]);
+    setMission(m=>{
+      if(!m||m.missionId!==missionId)return m;
+      const meta=entry.asset;
+      const current=(m.creative&&m.creative.assets)?m.creative.assets:[];
+      const next=[...current.filter(a=>a.assetId!==meta.assetId),{assetId:meta.assetId,prompt:meta.prompt,mimeType:meta.mimeType,bytes:meta.bytes,sha256:meta.sha256,reviewStatus:meta.reviewStatus}];
+      return {...m,creative:{...(m.creative||{}),assets:next,generated:true}};
+    });
+  }
+  function handleApproved(record,missionId){
+    setMission(m=>{
+      if(!m||m.missionId!==missionId)return m;
+      return {...m,approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:record.scope||'LOCAL_DRAFT_ONLY',planHash:record.planHash||'',approvalId:record.approvalId||'',approvedAt:record.approvedAt||'',verified:'server-issued'}};
+    });
+  }
 
   const View=VIEWS[view]||CommandView;
   const label=(WORKSPACES.find(w=>w.id===view)||{}).label||'Command Centre';
@@ -102,7 +119,7 @@ export default function Shell({initialView}){
         </div>}
       </header>
       <main className="content">
-        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
+        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} assets={assets} setAssets={setAssets} onGenerated={handleGenerated} onApproved={handleApproved} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
       </main>
     </div>
   </div>;

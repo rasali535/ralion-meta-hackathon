@@ -84,19 +84,20 @@ At 19:26 UTC Muse ran a PowerShell command that imports `lib/meta/provider.js` w
 
 Commit attribution: Git author names do not distinguish agents (both tools commit under the owner's identity). Muse's contribution is therefore established by its session log, not by Git authorship. The Muse-written files reached Git in Anti's commit `60e528a`, and Anti did not edit them apart from `reason/route.js` as noted above.
 
-## 6. Test totals and Phase 2 Slice 2 expansion
+## 6. Test totals and Phase 3 expansion
 
-With Phase 2 Slice 2 integrated, the suite contains **87 passing automated tests**: 9 in the root suite and 78 in `apps/meta-os`.
-- Muse Slice 1 test files: `website-ingest.test.mjs` (13), `mission-evidence.test.mjs` (5), `auth.test.mjs` (7), `ratelimit.test.mjs` (5).
-- Muse Slice 2 test files: `pinned-transport.test.mjs` (8), `inference-access.test.mjs` (7), `mari.test.mjs` (6), `mission-approval.test.mjs` (5), `navigation.test.mjs` (5).
-- Anti test files: `budget.test.mjs` (4), `approval.test.mjs` (4), `live-probes.test.mjs` (3).
-- Existing provider tests: `meta-provider.test.mjs` (6).
-- Root test files: `businessIntake.test.js` (3), `campaignPlan.test.js` (2), `engine.test.js` (4).
+With Phase 3 integrated, the suite contains **128 passing automated tests**: 9 in the root suite and 119 in `apps/meta-os`.
+- **Muse Slice 1 test files:** `website-ingest.test.mjs` (13), `mission-evidence.test.mjs` (5), `auth.test.mjs` (7), `ratelimit.test.mjs` (5).
+- **Muse Slice 2 test files:** `pinned-transport.test.mjs` (8), `inference-access.test.mjs` (7), `mari.test.mjs` (6), `mission-approval.test.mjs` (5), `navigation.test.mjs` (5).
+- **Muse Slice 3 test files:** `approval-creative.test.mjs` (2), `asset-url.test.mjs` (4), `budget-reserve.test.mjs` (4), `creative-store.test.mjs` (6), `creative.test.mjs` (5), `image-prompt.test.mjs` (4), `inference-reserve.test.mjs` (3), `media-fetch.test.mjs` (5), `mission-approve.test.mjs` (4), `social-copy.test.mjs` (4).
+- **Anti test files:** `budget.test.mjs` (4), `approval.test.mjs` (4), `live-probes.test.mjs` (3).
+- **Existing provider tests:** `meta-provider.test.mjs` (6).
+- **Root test files:** `businessIntake.test.js` (3), `campaignPlan.test.js` (2), `engine.test.js` (4).
 
-See [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md) for the sanitized tool and timing evidence of Muse's Slice 2 work.
+See [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md) and [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md) for the sanitized tool and timing evidence of Muse's Slice 2 and Slice 3 work.
 
 ## 7. Open points
 
-- A sanitized, publishable log extract for session 1 has not been produced; Slice 2 evidence is documented in `docs/MUSE_SLICE2_EVIDENCE.md`.
+- A sanitized, publishable log extract for session 1 has not been produced; Slice 2 and Slice 3 evidence are documented in `docs/MUSE_SLICE2_EVIDENCE.md` and `docs/MUSE_SLICE3_EVIDENCE.md`.
 - Subscription status meaning and whether Muse Code usage in the contest is attributable need to be confirmed against Meta's own account/billing view.
 - Muse Code CLI process remains preserved and active in `ralion-meta-os-dev`.
