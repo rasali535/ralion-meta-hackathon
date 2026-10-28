@@ -2,12 +2,12 @@
 import {verifyApprovalRecord} from './approval.js';
 export const MISSION_SCHEMA_VERSION='1.1';
 export function missionInput(input){
-  const name=String(input?.name||'').trim().slice(0,100);
+  const name=String(input?.name||input?.businessName||'').trim().slice(0,100);
   const industry=String(input?.industry||'').trim().slice(0,100);
-  const objective=String(input?.objective||'').trim().slice(0,300);
+  const objective=String(input?.objective||input?.goal||'').trim().slice(0,300);
   const audience=String(input?.audience||'Potential customers').trim().slice(0,200);
   const facts=String(input?.facts||'').trim().slice(0,2000);
-  const website=String(input?.website||'').trim().slice(0,500);
+  const website=String(input?.website||input?.websiteUrl||'').trim().slice(0,500);
   if(!name||!industry||!objective)throw Error('Business name, industry and objective are required');
   if(website){let u;try{u=new URL(website)}catch{throw Error('Enter a valid HTTPS business website')}if(u.protocol!=='https:'||u.username||u.password||(u.port&&u.port!=='443'))throw Error('Enter a valid HTTPS business website')}
   return {name,industry,objective,audience,facts,website};

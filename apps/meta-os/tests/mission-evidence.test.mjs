@@ -15,6 +15,10 @@ test('validates mission input before any ingestion',()=>{
   assert.throws(()=>planMission({}),/required/);
   const f=missionInput({...base,website:'https://example.org'});
   assert.equal(f.website,'https://example.org');
+  const alias=missionInput({businessName:'Ali Shoes',industry:'Retail',goal:'Expand sales',websiteUrl:'https://example.org'});
+  assert.equal(alias.name,'Ali Shoes');
+  assert.equal(alias.objective,'Expand sales');
+  assert.equal(alias.website,'https://example.org');
 });
 test('keeps reference-only behavior without evidence',()=>{
   const m=planMission({...base,website:'https://example.org'});
