@@ -1,11 +1,12 @@
 import {useEffect,useState} from 'react';
-import {ArrowRight,Activity} from 'lucide-react';
-import {WORKFLOW_STEPS,missionStatus,stepState} from '../../lib/navigation';
+import {Activity,ArrowRight} from 'lucide-react';
+import {missionStatus,stepState,WORKFLOW_STEPS} from '../../lib/navigation';
 import {buildLearningLoop} from '../../lib/learning-loop';
-import {Badge,Card,EmptyState,ModeBadge,ProgressBar,ModelReadiness,LiveErrorBanner,Rows} from '../components/ui';
+import {telemetrySummary,guidanceFor} from '../../lib/command';
+import {Badge,Card,Rows,EmptyState,ModeBadge,ProgressBar,ModelReadiness,LiveErrorBanner} from '../components/ui';
 
 function fmtTime(iso){
-  try{return new Date(iso).toLocaleString();}catch{return String(iso||'—');}
+  try{return new Date(iso).toLocaleString();}catch{return 'Recorded with mission';}
 }
 function fmtLatency(ms){
   return ms===null||ms===undefined?'—':String(ms)+' ms';
@@ -21,21 +22,31 @@ function fmtUsage(usage){
 export default function ActivityView({mission,onNavigate,metaStatus,token,session}){
   const status=missionStatus(mission);
   const [telemetry,setTelemetry]=useState(null);
+  const hasAuth=Boolean(token||session?.authenticated);
+
   useEffect(()=>{
+    if(!hasAuth){setTelemetry(null);return;}
     const headers={};
     if(token)headers['x-meta-demo-access']=token;
-    fetch('/api/telemetry/usage?limit=20',{headers}).then(r=>r.json()).then(j=>{
+    fetch('/api/telemetry/usage?limit=20',{credentials:'include',headers}).then(r=>r.json()).then(j=>{
       setTelemetry(Array.isArray(j&&j.records)?j.records:[]);
     }).catch(()=>setTelemetry([]));
-  },[token,session]);
+  },[hasAuth,token]);
+
   if(status.presence==='none'){
     return <div className="page">
       <div className="page-head"><h1>Activity</h1><p className="lede">Execution history, model usage and audit trail.</p></div>
       <EmptyState icon={Activity} title="Nothing recorded yet" body="Missions, evidence retrievals, model calls and approvals are listed here as they happen." action={<button type="button" className="btn primary" onClick={()=>onNavigate('business')}>Create a mission <ArrowRight size={16}/></button>} />
     </div>;
   }
+
   const m=mission;
   const done=WORKFLOW_STEPS.filter(s=>stepState(s.id,m)==='done').length;
+  const summary=telemetrySummary(telemetry||[]);
+  const models=Object.entries(summary.byModel);
+  const failures=(telemetry||[]).filter(r=>r&&r.ok!==true);
+  const approval=m.approval&&typeof m.approval==='object'?m.approval:{status:'NOT_REQUESTED'};
+  const decided=approval.status==='APPROVED'||approval.status==='REJECTED';
   let loop=null;
   try{loop=buildLearningLoop(m);}catch{loop=null;}
   const events=[
@@ -45,6 +56,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
     {t:fmtTime(m.createdAt),label:'Approval',detail:String(m.approval.status).replace(/_/g,' ')},
     {t:fmtTime(m.createdAt),label:'Execution',detail:String(m.execution.status).replace(/_/g,' ')},
   ];
+
   return <div className="page">
     <div className="page-head"><div className="row"><h1>Activity</h1><ModeBadge status={status}/></div><p className="lede">What was planned, what ran, and what remains unmeasured for {m.business.name}.</p></div>
     <LiveErrorBanner code={status.liveError}/>
@@ -53,16 +65,35 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
     </Card>
     <div className="grid-2">
       <Card title="Model usage" sub="Verified calls on this tenant, newest first.">
-        {!session?.authenticated&&!token?<p className="muted">Start a demo session to load tenant usage records.</p>
+        {!hasAuth?<p className="muted">Start a demo session to load tenant usage records.</p>
         :telemetry===null?<p className="muted">Loading usage records…</p>
         :telemetry.length===0?<p className="muted">No model calls recorded for this tenant yet.</p>
         :<ul className="timeline">{telemetry.map(r=><li key={r.id}><span className="t-time">{fmtTime(r.timestamp)}</span><span><strong>{r.ok?'Succeeded':'Failed'} · </strong><span className="mono">{r.model}</span>{' · '+r.operation.replace(/-/g,' ')}{r.requestId?' · request '+r.requestId:''}{' · '+fmtLatency(r.latencyMs)}{' · tokens: '+fmtUsage(r.usage)}{r.budget?' · budget '+r.budget.outcome+' ('+(r.budget.remainingUnits??'—')+' left)':''}{r.errorCode?' · '+r.errorCode:''}</span></li>)}</ul>}
       </Card>
       <Card title="Workflow completion" sub={done+' of 6 stages ready.'}>
         <ProgressBar value={done} max={6}/>
-        <p className="muted" style={{marginTop:10}}>Approval and measured results stay pending until a human reviews and real campaigns run.</p>
+        <p className="muted" style={{marginTop:10}}>{decided?'This mission is decided. Measured results still await real authorized campaigns.':'Approval and measured results stay pending until a human reviews and real campaigns run.'}</p>
       </Card>
     </div>
+    <div className="grid-2" style={{marginTop:16}}>
+      <Card title="Budget status" sub="Latest reported balance per model.">
+        {!hasAuth?<p className="muted">Sign in to load tenant budget state.</p>
+        :models.length===0?<p className="muted">No usage yet — daily limits are 100 Spark, 25 Wonder, 10 Image calls per workspace.</p>
+        :<Rows items={models.map(([model,s])=>({k:model,v:(s.remainingUnits===null||s.remainingUnits===undefined?'Balance unreported':s.remainingUnits+' remaining')+' · '+s.calls+' call(s)'+(s.failures?' · '+s.failures+' failed':'')}))}/>}
+      </Card>
+      <Card title="Approval history" sub="Decisions recorded on this mission.">
+        {!decided?<p className="muted">No approval recorded. Review and decide in the Social workspace.</p>:<Rows items={[
+          {k:'Decision',v:String(approval.status).replace(/_/g,' ')},
+          {k:'Approver',v:approval.actor?(String(approval.actor.id||'unknown')+' ('+String(approval.actor.role||'—')+')'):'Unknown'},
+          {k:'Scope',v:'Local drafts only'},
+          {k:'Plan hash',v:<span className="mono">{String(approval.planHash||'—').slice(0,24)+'…'}</span>},
+          {k:'Recorded',v:approval.approvedAt?fmtTime(approval.approvedAt):'—'},
+        ]}/>}
+      </Card>
+    </div>
+    {failures.length>0&&<Card title="Failed operations" sub="What failed and how to recover. Failed calls release their budget.">
+      <Rows items={failures.slice(0,5).map((r,i)=>({k:(r.operation||'operation').replace(/-/g,' ')+' · '+String(r.model||''),v:(r.errorCode||'Unknown error')+' — '+guidanceFor(r.errorCode)}))}/>
+    </Card>}
     <Card title="Learning loop" sub="Read-only derivation from this mission. Nothing here is measured.">
       {!loop?<p className="muted">This mission cannot be inspected yet.</p>:<>
         <div className="row"><Badge tone="muted">{loop.loopId}</Badge><Badge tone={loop.approval.status==='APPROVED'?'ok':'warn'}>{loop.approval.status.replace(/_/g,' ')}</Badge><Badge tone="muted">Publish NOT CONNECTED</Badge><Badge tone="muted">Performance NOT AVAILABLE</Badge></div>

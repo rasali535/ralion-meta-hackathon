@@ -91,9 +91,11 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/auth.test.mjs` | 7 |
 | `apps/meta-os/tests/budget-reserve.test.mjs` | 4 |
 | `apps/meta-os/tests/budget.test.mjs` | 4 |
+| `apps/meta-os/tests/command.test.mjs` | 7 |
 | `apps/meta-os/tests/creative-format.test.mjs` | 7 |
 | `apps/meta-os/tests/creative-store.test.mjs` | 6 |
 | `apps/meta-os/tests/creative.test.mjs` | 5 |
+| `apps/meta-os/tests/demo-session.test.mjs` | 5 |
 | `apps/meta-os/tests/image-prompt.test.mjs` | 4 |
 | `apps/meta-os/tests/inference-access.test.mjs` | 7 |
 | `apps/meta-os/tests/inference-reserve.test.mjs` | 3 |
@@ -114,11 +116,11 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/telemetry.test.mjs` | 7 |
 | `apps/meta-os/tests/website-ingest.test.mjs` | 13 |
 
-Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), and [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (13 static/dynamic routes generated).
+Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md), and [MUSE_PREMIUM_UI_EVIDENCE.md](MUSE_PREMIUM_UI_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (14 static/dynamic routes generated).
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (165/165 passing).
+1. Clone the repo and run the two test commands above (177/177 passing: 9 root + 168 Meta OS).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
 3. Observe automatic demo session initialization: topbar displays `DEMO SESSION` badge; all protected actions (mission planning, creative generation, social approval, usage telemetry) authenticate seamlessly via server-issued `HttpOnly` session cookie without requiring manually entering or pasting any token.
 4. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission with active session, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, activity workspace with usage telemetry and 7-stage learning loop inspector, and settings workspace session revocation and re-issuance lifecycle.
