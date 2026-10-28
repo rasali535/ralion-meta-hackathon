@@ -1,103 +1,62 @@
-# MARI Growth Autopilot — Meta AI Edition (Meta Hackathon 2026)
+# MARI Growth Autopilot — Meta Hackathon 2026
 
-> Autonomous Growth Intelligence Engine powered by Meta AI models and co-authored with Meta Muse Code CLI.
+Standalone, public submission worktree. This is **not** a mirror of production Ralion OS.
 
-[![Meta AI OS Foundation](https://github.com/rasali535/ralion-meta-hackathon/actions/workflows/meta-os.yml/badge.svg)](https://github.com/rasali535/ralion-meta-hackathon/actions/workflows/meta-os.yml)
-[![Tests Passing](https://img.shields.io/badge/tests-55%20passing-brightgreen.svg)](#run-the-test-suites-locally)
-[![Meta Models Verified](https://img.shields.io/badge/Meta%20Models-Spark%20%7C%20Wonder%20%7C%20Image-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
-[![Co-Authored with Muse Code](https://img.shields.io/badge/Built%20With-Meta%20Muse%20Code-purple.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
+[![Tests](https://img.shields.io/badge/tests-87%20passing-brightgreen.svg)](#tests)
+[![Meta models](https://img.shields.io/badge/Meta%20models-owner--reported%20live%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
+[![Muse Code](https://img.shields.io/badge/Muse%20Code-session%20log%20evidence-lightgrey.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
 
----
+## Scope
+Business context → Meta-powered reasoning → evidence-backed growth action proposal → human approval → isolated action execution → measured outcome.
 
-## What We Built
+## Current status (honest summary)
+- **Working and tested offline (87 tests):** DNS-pinned website transport (re-pinned every redirect hop to prevent TOCTOU DNS rebinding), mission planning with grounded evidence labels, v2 tenant-scoped tokens (`v2.<org>.<workspace>.<exp>.<sig>`), shared inference access guard with per-token rate limits and per-workspace daily inference budgets, signed human-approval records strictly locked to `LOCAL_DRAFT_ONLY` with `execution: NOT_CONNECTED`, responsive 8-workspace OS shell (Command Center, Business, MARI, Growth, Creative, Social, Activity, Settings) with dark/light theme switching, and Meta provider adapters (Spark, Wonder, Muse Image).
+- **Live Meta API receipts (reported by the project owner, not independently reproduced by the repo's automated tests):** Spark `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image 9,233 ms, image retrieved with HTTP 200 (`image/webp`, 298,186 bytes), request ID unavailable.
+- **Live MARI integration:** Optional live MARI mission diagnosis (Spark/Wonder) behind explicit feature flags (`MARI_LIVE_REASONING_ENABLED=true` and master switch `META_REASONING_API_ENABLED=true`) plus demo token authentication, with automatic deterministic fallback if credentials or flags are absent or if inference fails.
+- **Safety boundaries enforced:** Public demo mission flow defaults to deterministic demo without calling billable Meta models; the direct inference route is disabled by default; human approval records can never trigger live ad execution; approvals, budgets and rate limits are in-memory per process; SAM 3.1 is not implemented; no Facebook/Instagram publishing or ad spend is connected.
 
-**MARI Growth Autopilot** is an autonomous marketing and growth intelligence engine built for small-to-medium businesses. It takes raw business context, safely extracts grounded evidence from public websites, applies **Meta AI reasoning models** to identify high-leverage growth opportunities, synthesizes brand-aligned creative concepts, and constructs Facebook and Instagram campaign drafts—all governed by a **cryptographic human approval gateway**.
+## How Muse Code and Anti were used
+Development used two AI tools, and the evidence for each differs:
+- **Muse Code CLI** (active model `muse-spark-1.3-contributor` in `ralion-meta-os-dev`): created the website-ingestion, DNS-pinned transport, v2 tenant auth, shared inference guard, live MARI diagnosis wiring with fallback, draft approval attachment, 8-workspace OS redesign, and their tests. See [docs/MUSE_SLICE2_EVIDENCE.md](docs/MUSE_SLICE2_EVIDENCE.md).
+- **Anti** (IDE agent): created the budget ledger, approval module, live-probe harness, integrated and independently verified Muse's Slice 1 and Slice 2 contributions, built Next.js production bundles, executed smoke verification, and maintained authoritative documentation and git commits.
 
-### The Autonomous Workflow Loop:
-1. **Intake & Grounded Ingestion**: User provides business context and a website. An SSRF-safe ingestion engine extracts grounded text evidence with SHA-256 verification.
-2. **Fast Diagnosis (Meta Muse Spark 1.3)**: Rapidly assesses audience opportunities and diagnoses growth bottlenecks.
-3. **Deep Strategic Reasoning (Meta Muse Wonder 1.0)**: Deploys high-effort reasoning (`effort: high`, auto summary) to formulate testable marketing hypotheses.
-4. **Multimodal Concept Generation (Meta Muse Image 1.0)**: Generates verified on-brand campaign visual assets with automated HTTP retrieval validation.
-5. **Campaign Planning**: MARI structures channel-specific Facebook and Instagram briefs.
-6. **Cryptographic Human Approval**: External actions require signed, role-checked authorizations bound to the exact mission hash. All drafts default to `LOCAL_DRAFT_ONLY`.
-7. **Production Isolation**: Zero connection to production databases, ad spending accounts, or client records.
+Details, timestamps and limits: [docs/MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md) and [docs/MUSE_SLICE2_EVIDENCE.md](docs/MUSE_SLICE2_EVIDENCE.md). Meta API receipts and security controls: [docs/AI_DEVELOPMENT_EVIDENCE.md](docs/AI_DEVELOPMENT_EVIDENCE.md).
 
----
+## Source provenance
+Read-only source: `rasali535/alinew` (`main`, inspected 2026-10-27). Curated, type-only contracts reside in `src/contracts`. No production database, service credentials, customer records, payment or billing services are copied. See `SOURCE_INVENTORY.md`.
 
-## Meta AI Integration Matrix
+## Safety boundaries
+- Never connect this application to production Ralion infrastructure.
+- Never commit `.env` files, private keys, access tokens or customer data. Meta credentials stay server-side.
+- Demo data must be synthetic or permissioned.
+- Require approval before any external publishing or spending. Approvals strictly enforce `LOCAL_DRAFT_ONLY`.
+- Changes to this repository do not modify `alinew`.
+- Website fetch uses DNS-pinned HTTPS transport per hop to prevent DNS rebinding attacks (`apps/meta-os/lib/website.js`).
 
-| Meta AI Component | Role in Ralion OS | Verification Status |
-| :--- | :--- | :--- |
-| **Meta Muse Code CLI** (`muse`) | Developer-side pair programming CLI; authored website ingest, auth & rate limiting. | **ACTIVE & VERIFIED** (OAuth Device Code) |
-| **Meta Muse Spark 1.3** (`muse-spark-1.3`) | Fast runtime reasoning for MARI Growth Autopilot. | **VERIFIED LIVE** (`resp_6ae0ff1b9215a46fe33a464a`, 4,710 ms) |
-| **Meta Muse Wonder 1.0** (`muse-wonder-1.0`) | High-effort deep reasoning for strategic campaign hypothesis generation. | **VERIFIED LIVE** (`effort: high`, auto summary) |
-| **Meta Muse Image 1.0** (`muse-image-1.0`) | Multimodal creative asset generation with live CDN retrieval verification. | **VERIFIED LIVE** (Live HEAD/GET asset check) |
-| **Meta SAM 3.1** (`sam-3.1`) | Visual asset segmentation and cutout preparation. | Staged Interface Contract |
-
-Detailed technical evidence: [AI_DEVELOPMENT_EVIDENCE.md](docs/AI_DEVELOPMENT_EVIDENCE.md) and [MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md).
-
----
-
-## Co-Development with Meta Muse Code
-
-This repository was engineered through a dual-agent workflow coordinating **Meta Muse Code CLI** (`muse`) in the terminal and **Antigravity (Anti)** in the IDE:
-- **Muse Code authored**: The SSRF-guarded website ingestion engine (`lib/website.js`), mission evidence citations (`lib/mission.js`), stateless HMAC access tokens (`lib/auth.js`), and the token-bucket rate limiter (`lib/ratelimit.js`) across 29 dedicated unit tests.
-- **Anti authored**: Repository contracts (`src/contracts/`), per-workspace budget ledgers (`lib/budget.js`), the cryptographic human approval gateway (`lib/approval.js`), and live probe test harnesses (`scripts/live-probes.mjs`).
-
-See [docs/MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md) for full audit trail.
-
----
-
-## Run the Test Suites Locally
-
-The project includes **55 passing automated tests** with zero external test runner dependencies (uses native Node.js `node:test`):
+## Tests
+Requires Node.js 20 or newer. No billable API calls run in tests.
 
 ```bash
-# 1. Run root prototype contracts & approval tests (9 tests)
-npm test
-
-# 2. Run Meta OS Next.js tests, ingest, auth, rate limit & budget tests (46 tests)
-npm --prefix apps/meta-os test
+npm test                         # 9 root tests
+npm --prefix apps/meta-os test   # 78 Meta OS tests (87 total)
 ```
 
-All 55 tests pass deterministically offline without billable API calls.
-
----
-
-## Run the Web Application Locally
-
-Requires **Node.js 20** or newer.
-
+## Run the apps locally
 ```bash
-# Navigate to the Meta OS Next.js application
-cd apps/meta-os
-npm install
-npm run dev
+# Root prototype (loopback only, in-memory, no auth)
+npm start        # http://127.0.0.1:3000
+
+# Next.js Meta OS app
+cd apps/meta-os && npm install && npm run dev   # http://localhost:3600
 ```
 
-Open [http://localhost:3600](http://localhost:3600) in your browser:
-1. **Workspace**: Experience the unified Ralion OS interface.
-2. **Business**: Enter a business profile and website URL.
-3. **MARI**: Generate a unified mission draft connecting Growth, Creative, and Social.
-4. **Activity**: View the grounded website evidence with verified SHA-256 hashes and word counts.
-5. **Approval**: Confirm all campaign proposals are strictly marked `DRAFT_ONLY · NOT APPROVED · NOT PUBLISHED`.
+The root prototype's `meta` mode uses a chat-completions-style adapter that has **not** been validated against the Meta account; the Next.js app's Responses-API provider is the validated path. **Do not deploy the root prototype publicly.** See `docs/SECURITY.md`.
 
----
+## Documentation
+- [docs/AI_DEVELOPMENT_EVIDENCE.md](docs/AI_DEVELOPMENT_EVIDENCE.md)
+- [docs/MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md)
+- [docs/MUSE_SLICE2_EVIDENCE.md](docs/MUSE_SLICE2_EVIDENCE.md)
+- [docs/PHASE_1_5_VALIDATION_STATUS.md](docs/PHASE_1_5_VALIDATION_STATUS.md)
+- [docs/RALION_REINTEGRATION_ARCHITECTURE.md](docs/RALION_REINTEGRATION_ARCHITECTURE.md)
+- [docs/SECURITY.md](docs/SECURITY.md)
 
-## Safety, Privacy & Production Isolation
-
-- **Clean-Room Incubation**: Developed as an isolated worktree. No code, customer data, or database migrations are copied from production Ralion OS (`alinew`).
-- **Zero Exposed Credentials**: API keys remain strictly server-side in environment variables (`MODEL_API_KEY`). No secrets belong in `.env.example`, client bundles, or Git.
-- **Inference Quotas & Budgets**: In-memory token buckets (10/min burst, 200/day) and daily workspace budgets prevent runaway costs.
-- **SSRF Defense**: The website reader pre-resolves DNS and strictly blocks loopback, private RFC 1918 subnets, IPv6 mapped addresses, and redirect bounce attacks.
-- **Human Approval Gate**: External publishing and advertising spend are disabled. Approvals are cryptographically signed and bound to the immutable plan hash.
-
----
-
-## Repository Documentation
-
-* [docs/AI_DEVELOPMENT_EVIDENCE.md](docs/AI_DEVELOPMENT_EVIDENCE.md) — Judge-facing summary of Meta AI integrations and test matrix.
-* [docs/MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md) — Verifiable evidence of Meta Muse Code CLI contributions.
-* [docs/PHASE_1_5_VALIDATION_STATUS.md](docs/PHASE_1_5_VALIDATION_STATUS.md) — Live validation log for Spark, Wonder, and Muse Image.
-* [docs/RALION_REINTEGRATION_ARCHITECTURE.md](docs/RALION_REINTEGRATION_ARCHITECTURE.md) — Upstream architectural reintegration blueprint for Ralion OS.
-* [docs/SECURITY.md](docs/SECURITY.md) — Threat model and security controls.

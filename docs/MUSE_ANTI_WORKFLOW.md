@@ -6,7 +6,7 @@ It is critical to distinguish between the **Muse developer CLI** and the **Meta 
 
 | Component | Nature | Location | Primary Role |
 | :--- | :--- | :--- | :--- |
-| **Muse Terminal Session** (`muse`) | Developer CLI Agent | `c:\Users\Ras Ali Labs\Desktop\ralion-meta-os-dev` | Interactive coding, terminal execution, live session state, and developer-side reasoning via `muse-wonder-1.0`. |
+| **Muse Terminal Session** (`muse`) | Developer CLI Agent | `c:\Users\Ras Ali Labs\Desktop\ralion-meta-os-dev` | Interactive coding and terminal execution. Active model in the running session: `muse-spark-1.3-contributor` (the `muse-wonder.example.toml` file is an example config, not the session's model). See `MUSE_CODE_DEVELOPMENT.md`. |
 | **Meta Model API: Spark** (`muse-spark-1.3`) | Server-side Wire API | `POST https://api.meta.ai/v1/responses` | Fast runtime reasoning for MARI Growth Autopilot. |
 | **Meta Model API: Wonder** (`muse-wonder-1.0`) | Server-side Wire API | `POST https://api.meta.ai/v1/responses` | High-effort deep reasoning for complex opportunity synthesis. |
 | **Meta Model API: Image** (`muse-image-1.0`) | Server-side Wire API | `POST https://api.meta.ai/v1/images/generations` | Creative concept generation producing verified image assets. |
@@ -25,7 +25,7 @@ The running terminal session is **not** an image generator or a client app runti
 |   [ ANTI (Antigravity Assistant) ]           [ MUSE (Meta Developer CLI) ]      |
 |   - Architecture & System Contracts          - Live Terminal Execution Context  |
 |   - Next.js Foundation & API Routes          - In-Session Model Querying        |
-|   - Test Automation (`node:test`)            - High-Effort Reasoning Engine     |
+|   - Test Automation (`node:test`)            - Local file/test tool calls        |
 |   - Security Guardrails & Scrubbing          - Interactive CLI Probing          |
 |   - Tenant Isolation Scaffolding             - Local Shell Verification         |
 |                          \                         /                            |

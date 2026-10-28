@@ -11,10 +11,11 @@ npm run dev
 ```
 
 ## Included
-- Unified OS shell: Workspace, Business, MARI AI, Growth, Creative, Social, Activity.
+- Unified OS shell: Command Centre, Business, MARI, Growth, Creative, Social, Activity, Settings, with light/dark themes and responsive desktop, tablet, and mobile layouts.
 - Business intake with objective, audience and first-party facts; public website text is retrieved server-side with SSRF guards, redirect re-validation, and size/time caps.
 - `POST /api/mission` outputs a structured Growth → Creative → Social **draft** with human approval and measurement statuses.
 - Mission evidence records retrieval status, source URL, content hash, and citations; blocked or failed retrieval is reported, never silent.
+- Optional live MARI diagnosis (Spark/Wonder) behind explicit flags plus demo-token auth, with deterministic fallback and labeled live/demo/error states.
 - Deterministic demo provider; strict evidence labels and no fake conversion data or invented successful campaign actions.
 - No public secrets, customer assets, production database, social publishing integration, or hardcoded tenant identifiers.
 

@@ -7,14 +7,16 @@ Working Directory: `c:\Users\Ras Ali Labs\Desktop\meta hack\ralion-meta-hackatho
 
 ---
 
-## 1. Verified Models & Status Matrix
+## 1. Model status matrix
 
-| Model | Role | Wire Endpoint | Auth Status | Live Verification Result |
-| :--- | :--- | :--- | :--- | :--- |
-| **`muse-spark-1.3`** | Fast contextual reasoning | `POST /v1/responses` | Server Bearer | **VERIFIED LIVE**<br>• Request ID: `resp_6ae0ff1b9215a46fe33a464a`<br>• Latency: `4,710 ms`<br>• Verified contextual AI output |
-| **`muse-wonder-1.0`** | Deep reasoning (`effort: high`) | `POST /v1/responses` | Server Bearer | **PROBE READY / AUTHORIZED**<br>• Script: `scripts/live-probes.mjs`<br>• High effort + auto summary |
-| **`muse-image-1.0`** | Creative concept visual generation | `POST /v1/images/generations` | Server Bearer | **PROBE READY / AUTHORIZED**<br>• Script: `scripts/live-probes.mjs`<br>• Live asset fetch & verification |
-| **`sam-3.1`** | Visual segmentation & masks | `POST /v1/responses` | Server Bearer | Deferred to Phase 2 |
+> **Evidence level:** the live receipts below were **supplied by the project owner** from live runs. They were **not independently witnessed by Anti**. Anti's own harness runs were dry runs with fake transports. Signed media URLs and credentials are not recorded.
+
+| Model | Role | Wire Endpoint | Owner-supplied live receipt |
+| :--- | :--- | :--- | :--- |
+| `muse-spark-1.3` | Fast contextual reasoning | `POST /v1/responses` | Request ID `resp_6ae0ff1b9215a46fe33a464a`; 4,710 ms; contextual response received |
+| `muse-wonder-1.0` | Deep reasoning (`effort: high`) | `POST /v1/responses` | Request ID `resp_6ae1034770c8117dac244a61`; 6,081 ms |
+| `muse-image-1.0` | Image generation | `POST /v1/images/generations` | Request ID unavailable; 9,233 ms; image URL returned; retrieval HTTP 200, `image/webp`, 298,186 bytes; asset verified |
+| `sam-3.1` | Segmentation | `POST /v1/responses` | Not implemented |
 
 ---
 
@@ -31,18 +33,8 @@ Working Directory: `c:\Users\Ras Ali Labs\Desktop\meta hack\ralion-meta-hackatho
 
 ---
 
-## 3. Live Probe Execution Procedure
+## 3. Probe harness
 
-The probe harness is staged at `apps/meta-os/scripts/live-probes.mjs`.
+`apps/meta-os/scripts/live-probes.mjs` runs one Wonder and one Muse Image request only when started with `--authorize-billable` and a server-side `MODEL_API_KEY`. Without the flag it runs a fake-transport dry run. It does not retry. For images it checks the returned URL with an HTTP request before reporting `assetVerified`.
 
-To execute the two authorized requests in a terminal session with `MODEL_API_KEY`:
-
-```powershell
-cd "c:\Users\Ras Ali Labs\Desktop\meta hack\ralion-meta-hackathon\apps\meta-os"
-node scripts/live-probes.mjs --authorize-billable
-```
-
-The script will:
-1. Dispatch one minimal `muse-wonder-1.0` request with high reasoning effort and capture request ID and latency.
-2. Dispatch one minimal `muse-image-1.0` request and immediately perform a HEAD/GET retrieval check on the returned asset URL to verify content delivery.
-3. Print sanitized JSON receipts and halt.
+Pre-run checks by Anti: branch `feat/meta-ai-os-foundation`; TCP reachability of `api.meta.ai:443`; `MODEL_API_KEY` not present in Anti's shell (so Anti could not run the live probes).
