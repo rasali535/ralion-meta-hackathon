@@ -1,8 +1,23 @@
 'use client';
-import {useEffect,useState} from 'react';
-import {Command,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,Activity,Settings,Menu,Sun,Moon,ChevronLeft,ShieldCheck,RotateCcw} from 'lucide-react';
+import {useState,useEffect} from 'react';
+import {
+  LayoutDashboard,
+  Building2,
+  BrainCircuit,
+  TrendingUp,
+  Palette,
+  Megaphone,
+  Activity,
+  Settings,
+  Menu,
+  Sun,
+  Moon,
+  ChevronLeft,
+  RotateCcw,
+  ShieldCheck
+} from 'lucide-react';
 import {WORKSPACES,parseViewParam} from '../../lib/navigation';
-import {starterBusiness} from '../../lib/modules';
+import {missingBusinessFields} from '../../lib/command';
 import CommandView from '../views/command';
 import BusinessView from '../views/business';
 import MariView from '../views/mari';
@@ -12,61 +27,104 @@ import SocialView from '../views/social';
 import ActivityView from '../views/activity';
 import SettingsView from '../views/settings';
 
-const ICONS={Command,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,Activity,Settings};
-const VIEWS={command:CommandView,business:BusinessView,mari:MariView,growth:GrowthView,creative:CreativeView,social:SocialView,activity:ActivityView,settings:SettingsView};
+const ICONS={
+  dashboard:LayoutDashboard,
+  building:Building2,
+  brain:BrainCircuit,
+  growth:TrendingUp,
+  palette:Palette,
+  megaphone:Megaphone,
+  activity:Activity,
+  settings:Settings
+};
 
-export default function Shell({initialView}){
-  const [view,setView]=useState(initialView||'command');
+const VIEWS={
+  command:CommandView,
+  business:BusinessView,
+  mari:MariView,
+  growth:GrowthView,
+  creative:CreativeView,
+  social:SocialView,
+  activity:ActivityView,
+  settings:SettingsView
+};
+
+const STARTER_BUSINESS={
+  name:'Northstar Coffee',
+  industry:'Hospitality / coffee',
+  website:'https://example.org',
+  audience:'Local morning commuters and remote workers',
+  objective:'Increase morning customer visits and establish an afternoon remote-work offering',
+  facts:'Speciality roaster with two high-street locations. Strong morning trade; under-used afternoon capacity. Looking to test a focused promotion without heavy discounting.'
+};
+
+export default function Shell(){
+  const [view,setView]=useState('command');
+  const [theme,setThemeState]=useState('dark');
+  const [wsName,setWsNameState]=useState('Demo Workspace');
   const [collapsed,setCollapsed]=useState(false);
   const [navOpen,setNavOpen]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
-  const [theme,setThemeState]=useState('dark');
-  const [wsName,setWsNameState]=useState('Demo workspace');
-  const [business,setBusiness]=useState(starterBusiness);
-  const [mission,setMission]=useState(null);
-  const [assets,setAssets]=useState([]);
-  const [metaStatus,setMetaStatus]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState('');
+  const [business,setBusiness]=useState(STARTER_BUSINESS);
   const [live,setLive]=useState(false);
   const [mariMode,setMariMode]=useState('spark');
   const [token,setToken]=useState('');
   const [session,setSession]=useState(null);
+  const [sessionBusy,setSessionBusy]=useState(false);
+  const [sessionError,setSessionError]=useState('');
+  const [mission,setMission]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [pendingGoal,setPendingGoal]=useState('');
+  const [creativeSeed,setCreativeSeed]=useState(null);
+  const [assets,setAssets]=useState([]);
+  const [metaStatus,setMetaStatus]=useState(null);
 
   async function checkSession(){
     try{
-      const r=await fetch('/api/demo/session');
-      const j=await r.json();
-      if(j&&j.authenticated){
+      const r=await fetch('/api/session/demo',{method:'GET',credentials:'include'});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&j&&j.authenticated){
         setSession(j);
-        if(j.workspaceId)setWsNameState(j.workspaceId);
-        return j;
-      }
-      return null;
-    }catch{return null;}
-  }
-
-  async function startDemoSession(name){
-    try{
-      const r=await fetch('/api/demo/session',{
-        method:'POST',
-        headers:{'content-type':'application/json'},
-        body:JSON.stringify({workspaceName:name||wsName})
-      });
-      const j=await r.json();
-      if(j&&j.authenticated){
-        setSession(j);
-        if(j.workspaceId)setWsNameState(j.workspaceId);
         return j;
       }
     }catch{}
     return null;
   }
 
+  async function startDemoSession(workspaceNameOverride){
+    setSessionError('');
+    if(sessionBusy)return;
+    setSessionBusy(true);
+    try{
+      const r=await fetch('/api/session/demo',{
+        method:'POST',
+        credentials:'include',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({workspaceName:workspaceNameOverride||wsName})
+      });
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(j.error||'Demo session failed');
+      setToken(j.token||'');
+      setSession({
+        authenticated:true,
+        organizationId:j.organizationId,
+        workspaceId:j.workspaceId,
+        expiresAt:j.expiresAt
+      });
+      return j;
+    }catch(err){
+      setSessionError(err.message||'Demo session failed');
+    }finally{
+      setSessionBusy(false);
+    }
+  }
+
   async function revokeDemoSession(){
     try{
-      await fetch('/api/demo/session',{method:'DELETE'});
+      await fetch('/api/session/demo',{method:'DELETE',credentials:'include'});
       setSession(null);
+      setToken('');
     }catch{}
   }
 
@@ -78,18 +136,23 @@ export default function Shell({initialView}){
       if(w)setWsNameState(w.slice(0,60));
     }catch{}
   },[]);
-  useEffect(()=>{document.documentElement.dataset.theme=theme;},[theme]);
+
+  useEffect(()=>{
+    document.documentElement.dataset.theme=theme;
+  },[theme]);
+
   useEffect(()=>{
     fetch('/api/meta/status').then(r=>r.json()).then(setMetaStatus).catch(()=>setMetaStatus(null));
   },[]);
+
   useEffect(()=>{
-    // Check or auto-initialize demo session on initial mount
     checkSession().then(s=>{
       if(!s){
         startDemoSession();
       }
     });
   },[]);
+
   useEffect(()=>{
     try{
       const id=parseViewParam(window.location.search);
@@ -102,19 +165,56 @@ export default function Shell({initialView}){
   function update(k,value){setBusiness(p=>({...p,[k]:value}));}
   function navigate(id){setView(id);setNavOpen(false);setMenuOpen(false);try{window.history.replaceState(null,'','?view='+id);}catch{}}
 
-  async function runMission(e){
-    e.preventDefault();
+  async function runMission(e,bodyOverride){
+    if(e&&e.preventDefault)e.preventDefault();
     setError('');setLoading(true);
     try{
       const headers={'content-type':'application/json'};
       if(token.trim())headers['x-meta-demo-access']=token.trim();
-      const r=await fetch('/api/mission',{method:'POST',headers,body:JSON.stringify({...business,live,mariMode})});
+      const r=await fetch('/api/mission',{
+        method:'POST',
+        credentials:'include',
+        headers,
+        body:JSON.stringify({...business,...(bodyOverride||{}),live,mariMode})
+      });
       const j=await r.json();
       if(!r.ok)throw new Error(j.error||'Mission failed');
-      setMission(j);setView('mari');
+      if(bodyOverride)setBusiness(p=>({...p,...bodyOverride}));
+      setMission(j);setPendingGoal('');setView('mari');
     }catch(err){setError(err.message||'Mission failed');}
     finally{setLoading(false);}
   }
+
+  function startFromHero(goal){
+    const g=String(goal||'').trim().slice(0,300);
+    if(!g)return;
+    const missing=missingBusinessFields({...business,objective:g});
+    setBusiness(p=>({...p,objective:g}));
+    if(missing.length>0){setPendingGoal(g);navigate('business');return;}
+    runMission(null,{objective:g});
+  }
+
+  function followUp(text){
+    const t=String(text||'').trim().slice(0,500);
+    if(!t||!mission)return;
+    const next={...(business||{}),facts:String((business&&business.facts)||'')+(String((business&&business.facts)||'')?'\n':'')+'Follow-up: '+t};
+    runMission(null,next);
+  }
+
+  function updateDraft(channel,patch){
+    setMission(m=>{
+      if(!m||!Array.isArray(m.social))return m;
+      const social=m.social.map(s=>s.channel===channel?{...s,...patch,socialContract:null}:s);
+      const hadDecision=m.approval&&['APPROVED','REJECTED'].includes(m.approval.status);
+      return {...m,social,approval:hadDecision?{status:'NOT_REQUESTED',actor:null,editedAfterApproval:true}:m.approval};
+    });
+  }
+
+  function sendBriefToCreative(){
+    setCreativeSeed({briefId:'growth',at:Date.now()});
+    navigate('creative');
+  }
+
   function handleGenerated(entry,missionId){
     setAssets(prev=>[...prev.filter(e=>e.asset.assetId!==entry.asset.assetId),entry]);
     setMission(m=>{
@@ -125,6 +225,7 @@ export default function Shell({initialView}){
       return {...m,creative:{...(m.creative||{}),assets:next,generated:true}};
     });
   }
+
   function handleApproved(record,missionId,approvedMission){
     setMission(m=>{
       if(!m||m.missionId!==missionId)return m;
@@ -142,8 +243,8 @@ export default function Shell({initialView}){
       <div className="side-head"><div className="brand-mark">R</div><div className="brand-text"><strong>RALION OS</strong><small>META AI EDITION</small></div></div>
       <p className="nav-label">WORKSPACES</p>
       <nav className="nav">{WORKSPACES.map(w=>{
-        const Icon=ICONS[w.icon]||Command;
-        return <button type="button" key={w.id} className={'nav-item'+(view===w.id?' active':'')} onClick={()=>navigate(w.id)} aria-current={view===w.id?'page':undefined}><span className="nav-icon"><Icon size={18}/></span><span className="nav-text">{w.label}</span>{w.availability!=='live'&&<span className="nav-flag">{w.availability==='draft'?'Draft':'Preview'}</span>}</button>;
+        const Icon=ICONS[w.icon]||LayoutDashboard;
+        return <button type="button" key={w.id} data-tip={w.label} title={w.label} className={'nav-item'+(view===w.id?' active':'')} onClick={()=>navigate(w.id)} aria-current={view===w.id?'page':undefined}><span className="nav-icon"><Icon size={18}/></span><span className="nav-text">{w.label}</span>{w.availability!=='live'&&<span className="nav-flag">{w.availability==='draft'?'Draft':'Preview'}</span>}</button>;
       })}</nav>
       <div className="side-foot">
         <button type="button" className="collapse-btn" onClick={()=>setCollapsed(c=>!c)} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}><ChevronLeft size={16} style={{transform:collapsed?'rotate(180deg)':'none'}}/><span>{collapsed?'Expand':'Collapse'}</span></button>
@@ -169,7 +270,7 @@ export default function Shell({initialView}){
         </div>}
       </header>
       <main className="content">
-        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} session={session} startDemoSession={startDemoSession} revokeDemoSession={revokeDemoSession} assets={assets} setAssets={setAssets} onGenerated={handleGenerated} onApproved={handleApproved} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
+        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} onHeroSubmit={startFromHero} onFollowup={followUp} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} session={session} sessionBusy={sessionBusy} sessionError={sessionError} onStartSession={startDemoSession} startDemoSession={startDemoSession} revokeDemoSession={revokeDemoSession} pendingGoal={pendingGoal} assets={assets} setAssets={setAssets} onGenerated={handleGenerated} onApproved={handleApproved} onUpdateDraft={updateDraft} creativeSeed={creativeSeed} onSendBrief={sendBriefToCreative} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
       </main>
     </div>
   </div>;

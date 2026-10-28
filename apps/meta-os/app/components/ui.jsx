@@ -1,4 +1,4 @@
-import {CheckCircle2,AlertCircle,AlertTriangle,Clock,Minus} from 'lucide-react';
+import {CheckCircle2,AlertCircle,AlertTriangle,Clock,Minus,ChevronRight} from 'lucide-react';
 import {liveErrorLabel} from '../../lib/navigation';
 
 export function Badge({tone='muted',children}){
@@ -32,8 +32,11 @@ export function Stepper({steps,stateFor,onStep}){
 export function Banner({tone='info',children}){
   return <div className={'banner bn-'+tone}>{children}</div>;
 }
-export function Stat({label,value,sub}){
-  return <div className="stat"><span className="stat-label">{label}</span><span className="stat-value">{value}</span>{sub&&<span className="stat-sub">{sub}</span>}</div>;
+export function Stat({label,value,sub,icon:Icon,tone}){
+  return <div className={'stat'+(tone?' tone-'+tone:'')}><span className="stat-top">{Icon&&<span className="stat-ic"><Icon size={14}/></span>}<span className="stat-label">{label}</span></span><span className="stat-value">{value}</span>{sub&&<span className="stat-sub">{sub}</span>}</div>;
+}
+export function Tracker({steps,onStep}){
+  return <ol className="track">{steps.map(s=><li key={s.id}><button type="button" className="track-step" data-state={s.state} onClick={()=>onStep&&onStep(s.view||s.id)} aria-label={s.label+': '+String(s.state).replace(/-/g,' ')}><span className="track-dot" aria-hidden="true"/><span className="track-label">{s.label}</span><span className="track-detail">{s.detail}</span><span className="track-state">{String(s.state).replace(/-/g,' ')}</span><ChevronRight size={15}/></button></li>)}</ol>;
 }
 export function ProgressBar({value,max}){
   const pct=max>0?Math.round(100*Math.min(max,Math.max(0,value))/max):0;

@@ -1,79 +1,102 @@
-import {useEffect,useState} from 'react';
-import {ArrowRight,Palette} from 'lucide-react';
+import {useState,useEffect} from 'react';
+import {Palette,ArrowRight,RefreshCw,Megaphone} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
 import {buildImagePrompt} from '../../lib/image-prompt';
-import {CREATIVE_FORMATS} from '../../lib/creative-format';
+import {CREATIVE_FORMATS,DEFAULT_CREATIVE_FORMAT} from '../../lib/creative-format';
 import {Badge,Card,Rows,EmptyState,ModeBadge,Banner,LiveErrorBanner,Spinner} from '../components/ui';
 
-function briefOptions(mission){
+function briefOptions(m){
   const opts=[];
-  if(mission.growth&&mission.growth.opportunity)opts.push({id:'growth',label:'Growth opportunity',text:mission.growth.opportunity});
-  if(mission.mariReasoning&&mission.mariReasoning.output)opts.push({id:'mari',label:'MARI diagnosis',text:String(mission.mariReasoning.output).slice(0,800)});
-  opts.push({id:'custom',label:'Custom brief',text:''});
+  if(m&&m.growth&&m.growth.opportunity){
+    opts.push({id:'growth',label:'Growth priority opportunity',text:m.growth.opportunity});
+  }
+  if(m&&m.mariReasoning&&m.mariReasoning.output){
+    opts.push({id:'mari',label:'MARI diagnosis summary',text:String(m.mariReasoning.output).slice(0,400)});
+  }
+  opts.push({id:'custom',label:'Custom direction',text:''});
   return opts;
 }
+
 function generateErrorMessage(status,body){
-  if(status===403)return 'Image generation is disabled on this deployment.';
-  if(status===401)return 'Demo session expired or unauthorized. Please start or resume a demo session.';
-  if(status===429)return 'Image quota or rate limit exceeded. Try again later.';
-  if(status===413)return 'Request too large.';
-  if(body&&typeof body.error==='string'&&/^(CREATIVE_|IMAGE_)/.test(body.error))return 'Request rejected: '+body.error.replace(/_/g,' ').toLowerCase()+'.';
-  if(status===502)return 'The image model could not complete this request.';
-  return 'Image generation failed.';
+  if(status===401)return 'A valid demo token or session is required. Start a demo session in the Business workspace.';
+  if(status===403)return 'Image generation is disabled or the request was unauthorized.';
+  if(status===429)return 'Rate limit or workspace budget reached. Retry shortly.';
+  return (body&&body.error)||'Image generation failed.';
 }
 
-export default function CreativeView({mission,onNavigate,token,session,startDemoSession,assets,setAssets,onGenerated}){
+export default function CreativeView({mission,onNavigate,token,session,assets,setAssets,onGenerated,creativeSeed}){
   const status=missionStatus(mission);
   const [briefId,setBriefId]=useState('growth');
   const [briefText,setBriefText]=useState('');
+  const [formatId,setFormatId]=useState(DEFAULT_CREATIVE_FORMAT);
   const [prompt,setPrompt]=useState('');
-  const [formatId,setFormatId]=useState('square');
   const [confirm,setConfirm]=useState(false);
   const [busy,setBusy]=useState(false);
-  const [notice,setNotice]=useState('');
   const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
   const [listed,setListed]=useState(false);
+
+  const hasAuth=Boolean(token||session?.authenticated);
+
   useEffect(()=>{
-    if(listed)return;
+    if(!hasAuth||listed)return;
     const headers={};
     if(token)headers['x-meta-demo-access']=token;
-    fetch('/api/creative/assets',{headers}).then(r=>r.json()).then(j=>{
+    fetch('/api/creative/assets',{credentials:'include',headers}).then(r=>r.json()).then(j=>{
       if(j&&Array.isArray(j.assets))setAssets(j.assets);
       setListed(true);
     }).catch(()=>setListed(true));
-  },[listed,token,session]);
+  },[hasAuth,token]);
+
+  useEffect(()=>{
+    if(creativeSeed&&creativeSeed.briefId){
+      setBriefId(creativeSeed.briefId);
+      setBriefText('');
+      setNotice('Growth brief received. Review the prompt, confirm, then generate.');
+    }
+  },[creativeSeed&&creativeSeed.at]);
+
   if(status.presence==='none'){
     return <div className="page">
       <div className="page-head"><h1>Creative Studio</h1><p className="lede">Campaign concepts and generated assets.</p></div>
       <EmptyState icon={Palette} title="No creative brief yet" body="Creative generation starts from a mission brief — a Growth opportunity, a MARI diagnosis, or your own direction." action={<button type="button" className="btn primary" onClick={()=>onNavigate('business')}>Create a mission <ArrowRight size={16}/></button>} />
     </div>;
   }
+
   const m=mission;
   const opts=briefOptions(m);
   const selected=opts.find(o=>o.id===briefId)||opts[opts.length-1];
   const effectiveBrief=briefText||selected.text;
   const approved=status.approval==='APPROVED';
   const missionAssets=(m.creative&&m.creative.assets)||[];
+  const modelId='muse-image-1.0 · Mock offline generator';
   const urlFor=id=>{const hit=(assets||[]).find(e=>e&&e.asset&&e.asset.assetId===id);return hit?hit.url:null;};
+
   function useSuggestion(){
     try{
       setPrompt(buildImagePrompt({businessName:m.business.name,businessIndustry:m.business.industry,brief:effectiveBrief,format:formatId}));
       setError('');
     }catch(e){setError('Add a brief before building a prompt.');}
   }
+
+  function reloadForRegeneration(a){
+    setPrompt(String(a.prompt||''));
+    if(a.requestedFormat&&a.requestedFormat.id)setFormatId(a.requestedFormat.id);
+    setConfirm(false);
+    setNotice('Prompt reloaded for regeneration. Confirmation is required — regeneration bills a new request.');
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch{}
+  }
+
   async function generate(e){
     e.preventDefault();
     setError('');setNotice('');
-    if(!token && !session?.authenticated){
-      setError('A demo session is required. Please start or resume a demo session.');
-      return;
-    }
+    if(!hasAuth){setError('A valid demo token or session is required. Start a demo session in the Business workspace.');return;}
     if(!confirm){setError('Confirm the request first: every generation may be billable.');return;}
     setBusy(true);
     try{
       const headers={'content-type':'application/json'};
       if(token)headers['x-meta-demo-access']=token;
-      const r=await fetch('/api/creative/generate',{method:'POST',headers,body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,format:formatId,confirm:true,missionId:m.missionId})});
+      const r=await fetch('/api/creative/generate',{method:'POST',credentials:'include',headers,body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,format:formatId,confirm:true,missionId:m.missionId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(generateErrorMessage(r.status,j));
       onGenerated({asset:j.asset,url:j.url,expiresAt:j.expiresAt},m.missionId);
@@ -82,8 +105,9 @@ export default function CreativeView({mission,onNavigate,token,session,startDemo
     }catch(err){setError(err.message||'Image generation failed.');}
     finally{setBusy(false);}
   }
+
   return <div className="page">
-    <div className="page-head"><div className="row"><h1>Creative Studio</h1><ModeBadge status={status}/></div><p className="lede">Generate campaign imagery from {m.business.name} briefs. Every request is explicit, metered, and review-gated.</p></div>
+    <div className="page-head"><div className="row"><h1>Creative Studio</h1><ModeBadge status={status}/><Badge tone="ai">{modelId}</Badge></div><p className="lede">Generate campaign imagery from {m.business.name} briefs. Every request is explicit, metered, and review-gated.</p></div>
     <LiveErrorBanner code={status.liveError}/>
     <form className="card" onSubmit={generate}>
       <div className="card-head"><div><h3>New generation</h3><p className="card-sub">Pick a brief, choose a format, edit the prompt, confirm, then generate.</p></div></div>
@@ -108,7 +132,7 @@ export default function CreativeView({mission,onNavigate,token,session,startDemo
         {notice&&<Banner tone="ok">{notice}</Banner>}
       </div>
     </form>
-    <Card title={'Assets ('+missionAssets.length+')'} sub="Stored in isolated workspace storage. Previews expire; bytes do not.">
+    <Card title={'Assets ('+missionAssets.length+')'} sub="Stored in isolated workspace storage. Previews expire; bytes do not." action={missionAssets.length>0?<button type="button" className="btn small ghost" onClick={()=>onNavigate('social')}><Megaphone size={14}/> Review in Social</button>:null}>
       {missionAssets.length===0?<p className="muted">No assets yet for this mission. Generate above, or reload the workspace list.</p>:<div className="asset-grid">{missionAssets.map(a=>{
         const url=urlFor(a.assetId);
         return <div className="asset-card" key={a.assetId}>
@@ -117,6 +141,7 @@ export default function CreativeView({mission,onNavigate,token,session,startDemo
             <div className="row">{approved?<Badge tone="ok">Approved with mission</Badge>:<Badge tone="warn">Pending review</Badge>}<Badge tone="muted">{a.mimeType}</Badge>{a.requestedFormat&&a.requestedFormat.label&&<Badge tone="muted">Requested {a.requestedFormat.label}</Badge>}</div>
             <p>{a.prompt}</p>
             <span className="mono">{a.bytes} bytes · {String(a.sha256).slice(0,12)+'…'}</span>
+            <div className="row" style={{marginTop:8}}><button type="button" className="btn small ghost" onClick={()=>reloadForRegeneration(a)}><RefreshCw size={13}/> Regenerate</button></div>
           </div>
         </div>;
       })}</div>}

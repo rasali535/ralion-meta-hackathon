@@ -1,21 +1,34 @@
 /**
- * Server-side Demo Session Management for Ralion Meta OS.
+ * Consolidated Demo Session Management for Ralion Meta OS.
  *
- * Implements short-lived, tenant-scoped demo sessions using Secure,
- * HttpOnly, SameSite=Lax cookies. Prevents arbitrary organization
- * impersonation by pinning organizationId to 'org_demo'.
- * Provides session issuance, request authentication, workspace sanitization,
- * and server-side in-memory revocation.
+ * Implements short-lived, tenant-scoped demo sessions with:
+ * - Server-side issued v2 HMAC demo tokens
+ * - Abuse controls: IP-keyed rate limits (5 per hour per client)
+ * - Pinned tenant isolation: strictly bound to 'demo' (rejects arbitrary org impersonation)
+ * - Random isolated workspace minting (`demo-<hex>`) or sanitized custom names
+ * - Secure, HttpOnly, SameSite=Lax cookie serialization (`ralion_demo_session`)
+ * - Backward compatibility with `x-meta-demo-access` headers
+ * - Session revocation registry (best-effort single-container) + 4-hour hard TTL expiration
  *
  * Server-only: never import into client components.
  */
 import {randomBytes,createHash} from 'node:crypto';
 import {issueDemoToken,verifyAccessToken,tokenFingerprint,tenantContext} from './auth.js';
+import {createRateLimiter} from './ratelimit.js';
 
 export const DEMO_SESSION_COOKIE='ralion_demo_session';
-export const DEMO_ORG_ID='org_demo';
-export const DEFAULT_SESSION_TTL_MS=2*60*60*1000; // 2 hours
-export const MAX_SESSION_TTL_MS=4*60*60*1000;     // 4 hours
+export const DEMO_SESSION_ORG='demo';
+export const DEMO_ORG_ID=DEMO_SESSION_ORG; // alias for backwards compatibility
+export const DEMO_SESSION_TTL_MS=4*60*60*1000; // 4 hours
+export const DEFAULT_SESSION_TTL_MS=DEMO_SESSION_TTL_MS;
+export const MAX_SESSION_TTL_MS=4*60*60*1000;
+export const DEMO_SESSION_ISSUE_LIMIT=5;
+export const DEMO_SESSION_ISSUE_WINDOW_MS=60*60*1000;
+
+export const demoSessionLimiter=createRateLimiter({
+  capacity:DEMO_SESSION_ISSUE_LIMIT,
+  refillIntervalMs:DEMO_SESSION_ISSUE_WINDOW_MS/DEMO_SESSION_ISSUE_LIMIT
+});
 
 const WS_SANITIZE_RE=/[^a-z0-9_-]/gi;
 
@@ -29,10 +42,14 @@ export function getFallbackDemoSecret(){
   return globalThis.__ralionDemoSecret;
 }
 
-export function sanitizeWorkspaceName(raw){
+export function mintDemoWorkspaceId(random=randomBytes){
+  return 'demo-'+random(6).toString('hex');
+}
+
+export function sanitizeWorkspaceName(raw,random=randomBytes){
   let s=String(raw||'').trim().toLowerCase().replace(WS_SANITIZE_RE,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
   if(!s||s==='workspace'||s==='demo'){
-    s='demo-'+randomBytes(3).toString('hex');
+    return 'ws_'+mintDemoWorkspaceId(random);
   }
   if(s.startsWith('ws-')){
     s='ws_'+s.slice(3);
@@ -58,20 +75,48 @@ export function clearRevocationList(){
   revokedSessions.clear();
 }
 
-export function createDemoSession({workspaceName,ttlMs=DEFAULT_SESSION_TTL_MS,env=process.env,now=Date.now()}={}){
+/**
+ * Mint demo session adhering to Muse contract with abuse rate limiting.
+ */
+export function requestDemoSession({clientKey,hmacSecret,now=Date.now(),limiter=demoSessionLimiter,issue=issueDemoToken,random=randomBytes}={}){
+  const key=String(clientKey||'direct').slice(0,120)||'direct';
+  if(!hmacSecret)throw new Error('AUTH_NOT_CONFIGURED');
+  const check=limiter.check(key,Number(now));
+  if(!check.allowed){
+    const e=new Error('DEMO_SESSION_RATE_LIMITED');
+    e.retryAfterMs=check.retryAfterMs;
+    throw e;
+  }
+  const workspaceId=mintDemoWorkspaceId(random);
+  const token=issue(workspaceId,{organizationId:DEMO_SESSION_ORG,hmacSecret,ttlMs:DEMO_SESSION_TTL_MS,now:Number(now)});
+  return {token,organizationId:DEMO_SESSION_ORG,workspaceId,expiresAt:new Date(Number(now)+DEMO_SESSION_TTL_MS).toISOString()};
+}
+
+/**
+ * Creates a demo session supporting custom workspace naming and cookie options.
+ */
+export function createDemoSession({workspaceName,ttlMs=DEFAULT_SESSION_TTL_MS,env=process.env,now=Date.now(),clientKey,limiter=demoSessionLimiter,random=randomBytes}={}){
+  if(clientKey){
+    const check=limiter.check(String(clientKey).slice(0,120),Number(now));
+    if(!check.allowed){
+      const e=new Error('DEMO_SESSION_RATE_LIMITED');
+      e.retryAfterMs=check.retryAfterMs;
+      throw e;
+    }
+  }
   const secret=env.META_DEMO_TOKEN_SECRET||getFallbackDemoSecret();
-  const workspaceId=sanitizeWorkspaceName(workspaceName);
+  const workspaceId=workspaceName?sanitizeWorkspaceName(workspaceName,random):mintDemoWorkspaceId(random);
   const clampedTtl=Math.max(60*1000,Math.min(MAX_SESSION_TTL_MS,Number(ttlMs)||DEFAULT_SESSION_TTL_MS));
   const token=issueDemoToken(workspaceId,{
-    organizationId:DEMO_ORG_ID,
+    organizationId:DEMO_SESSION_ORG,
     hmacSecret:secret,
     ttlMs:clampedTtl,
-    now
+    now:Number(now)
   });
-  const expMs=now+clampedTtl;
+  const expMs=Number(now)+clampedTtl;
   return {
     token,
-    organizationId:DEMO_ORG_ID,
+    organizationId:DEMO_SESSION_ORG,
     workspaceId,
     expiresAt:new Date(expMs).toISOString(),
     ttlMs:clampedTtl,
