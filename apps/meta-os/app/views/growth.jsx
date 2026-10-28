@@ -1,6 +1,6 @@
 import {ArrowRight,TrendingUp} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
-import {Card,Rows,EmptyState,ModeBadge,Banner,LiveErrorBanner} from '../components/ui';
+import {Badge,Card,Rows,EmptyState,ModeBadge,Banner,LiveErrorBanner} from '../components/ui';
 
 export default function GrowthView({mission,onNavigate}){
   const status=missionStatus(mission);
@@ -16,6 +16,7 @@ export default function GrowthView({mission,onNavigate}){
     <LiveErrorBanner code={status.liveError}/>
     <Banner tone="info">Strategy drafts only. No execution is connected, and no results exist until a real authorized campaign runs.</Banner>
     <Card title="Opportunity" sub="Testable campaign hypothesis.">
+      <div className="row"><Badge tone="muted">{String((m.growth&&m.growth.category)||'MARKETING_ACQUISITION').replace(/_/g,' ')}</Badge></div>
       <Rows items={[
         {k:'Opportunity',v:m.growth.opportunity},
         {k:'Rationale',v:m.growth.reason},

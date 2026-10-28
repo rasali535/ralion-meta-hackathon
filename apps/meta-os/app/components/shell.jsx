@@ -75,14 +75,15 @@ export default function Shell({initialView}){
       if(!m||m.missionId!==missionId)return m;
       const meta=entry.asset;
       const current=(m.creative&&m.creative.assets)?m.creative.assets:[];
-      const next=[...current.filter(a=>a.assetId!==meta.assetId),{assetId:meta.assetId,prompt:meta.prompt,mimeType:meta.mimeType,bytes:meta.bytes,sha256:meta.sha256,reviewStatus:meta.reviewStatus}];
+      const next=[...current.filter(a=>a.assetId!==meta.assetId),{assetId:meta.assetId,prompt:meta.prompt,mimeType:meta.mimeType,bytes:meta.bytes,sha256:meta.sha256,reviewStatus:meta.reviewStatus,requestedFormat:meta.requestedFormat||null}];
       return {...m,creative:{...(m.creative||{}),assets:next,generated:true}};
     });
   }
-  function handleApproved(record,missionId){
+  function handleApproved(record,missionId,approvedMission){
     setMission(m=>{
       if(!m||m.missionId!==missionId)return m;
-      return {...m,approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:record.scope||'LOCAL_DRAFT_ONLY',planHash:record.planHash||'',approvalId:record.approvalId||'',approvedAt:record.approvedAt||'',verified:'server-issued'}};
+      const social=approvedMission&&Array.isArray(approvedMission.social)?approvedMission.social:m.social;
+      return {...m,social,approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:record.scope||'LOCAL_DRAFT_ONLY',planHash:record.planHash||'',approvalId:record.approvalId||'',approvedAt:record.approvedAt||'',verified:'server-issued'}};
     });
   }
 

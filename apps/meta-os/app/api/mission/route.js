@@ -3,10 +3,13 @@ import {missionInput,planMission,attachApproval} from '../../../lib/mission';
 import {ingestWebsite} from '../../../lib/website';
 import {missionLiveConfig,resolveMariMode,diagnoseWithMari,sanitizeMariErrorCode} from '../../../lib/mari';
 import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '../../../lib/inference-access';
+import {recordModelUsage} from '../../../lib/telemetry';
+import {MODEL_IDS} from '../../../lib/meta/provider';
 import {verifyAccessToken,tenantContext} from '../../../lib/auth';
 // Public demo route: website ingestion is SSRF/pinned-DNS/size/time-capped
 // with a kill switch. Live MARI needs explicit flags plus a presented demo
 // token; every live failure falls back to the deterministic demo.
+function telem(entry){try{recordModelUsage(entry);}catch{}}
 export async function POST(request){
   try{
     const raw=await request.text();
@@ -32,11 +35,18 @@ export async function POST(request){
           try{
             const access=checkInferenceAccess({presentedToken:presented,mode:mariMode});
             const receipt=reserveInferenceUsage({organizationId:access.organizationId,workspaceId:access.workspaceId,mode:mariMode});
+            const t0=Date.now();
             let diagnosis;
             try{
               diagnosis=await diagnoseWithMari(fields,{mode:mariMode});
-            }catch(e){try{settleInferenceUsage(receipt,{ok:false});}catch{}throw e;}
+            }catch(e){
+              let released=null;
+              try{released=settleInferenceUsage(receipt,{ok:false});}catch{}
+              telem({model:MODEL_IDS[mariMode],provider:'META_MODEL_API',organizationId:access.organizationId,workspaceId:access.workspaceId,operation:'mari-diagnosis',ok:false,latencyMs:Date.now()-t0,errorCode:sanitizeMariErrorCode(e),budget:released?{outcome:'released',remainingUnits:released.remainingUnits}:null});
+              throw e;
+            }
             const usage=settleInferenceUsage(receipt,{requestId:diagnosis.requestId,ok:true});
+            telem({model:diagnosis.model||MODEL_IDS[mariMode],provider:'META_MODEL_API',requestId:diagnosis.requestId||null,organizationId:access.organizationId,workspaceId:access.workspaceId,operation:'mari-diagnosis',ok:true,latencyMs:Date.now()-t0,usage:null,budget:{outcome:'confirmed',remainingUnits:usage.remainingUnits}});
             mission.mode='LIVE_MARI';
             mission.mariReasoning={...diagnosis,organizationId:access.organizationId,workspaceId:access.workspaceId,remainingBudget:usage.remainingUnits};
           }catch(e){

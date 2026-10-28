@@ -8,6 +8,7 @@
  */
 import {generateWithMuseImage} from './meta/provider.js';
 import {resolveCreativePrompt,IMAGE_PROMPT_MAX_CHARS} from './image-prompt.js';
+import {resolveCreativeFormat} from './creative-format.js';
 import {mintAssetId,saveCreativeAsset,sha256Hex} from './creative-store.js';
 
 export const CREATIVE_MAX_BYTES=8*1024*1024;
@@ -33,14 +34,15 @@ function validatedBrief(brief){
   if(!BRIEF_SOURCES.includes(source))throw new Error('CREATIVE_BRIEF_INVALID');
   return {source,text:typeof brief.text==='string'?brief.text:'',businessName:brief.businessName,businessIndustry:brief.businessIndustry||''};
 }
-export async function generateCreativeAsset({tenant,brief,prompt,confirm,missionId,generateImpl=generateWithMuseImage,fetchMediaImpl,storeRoot,now=Date.now()}){
+export async function generateCreativeAsset({tenant,brief,prompt,confirm,missionId,format,generateImpl=generateWithMuseImage,fetchMediaImpl,storeRoot,now=Date.now()}){
   const org=tenant&&typeof tenant.organizationId==='string'?tenant.organizationId.trim():'';
   const ws=tenant&&typeof tenant.workspaceId==='string'?tenant.workspaceId.trim():'';
   if(!org||!ws)throw new Error('CREATIVE_TENANT_REQUIRED');
   if(confirm!==true)throw new Error('CREATIVE_CONFIRM_REQUIRED');
   if(!storeRoot)throw new Error('CREATIVE_STORAGE_INVALID');
+  const requested=resolveCreativeFormat(format===undefined||format===null?'square':format);
   const cleanBrief=validatedBrief(brief);
-  const fallback=cleanBrief?{businessName:cleanBrief.businessName,businessIndustry:cleanBrief.businessIndustry,brief:cleanBrief.text}:'';
+  const fallback=cleanBrief?{businessName:cleanBrief.businessName,businessIndustry:cleanBrief.businessIndustry,brief:cleanBrief.text,format:requested.id}:'';
   const finalPrompt=resolveCreativePrompt({prompt,fallback});
   if(finalPrompt.length>IMAGE_PROMPT_MAX_CHARS)throw new Error('CREATIVE_PROMPT_TOO_LONG');
   const gen=await generateImpl({prompt:finalPrompt});
@@ -68,6 +70,7 @@ export async function generateCreativeAsset({tenant,brief,prompt,confirm,mission
     workspaceId:ws,
     missionId:String(missionId||'').slice(0,100)||null,
     prompt:finalPrompt,
+    requestedFormat:{id:requested.id,label:requested.label,width:requested.width,height:requested.height},
     model:gen.model||null,
     requestId:gen.requestId||null,
     mimeType,

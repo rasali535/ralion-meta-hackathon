@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {ArrowRight,Palette} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
 import {buildImagePrompt} from '../../lib/image-prompt';
+import {CREATIVE_FORMATS} from '../../lib/creative-format';
 import {Badge,Card,Rows,EmptyState,ModeBadge,Banner,LiveErrorBanner,Spinner} from '../components/ui';
 
 function briefOptions(mission){
@@ -26,6 +27,7 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
   const [briefId,setBriefId]=useState('growth');
   const [briefText,setBriefText]=useState('');
   const [prompt,setPrompt]=useState('');
+  const [formatId,setFormatId]=useState('square');
   const [confirm,setConfirm]=useState(false);
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState('');
@@ -53,7 +55,7 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
   const urlFor=id=>{const hit=(assets||[]).find(e=>e&&e.asset&&e.asset.assetId===id);return hit?hit.url:null;};
   function useSuggestion(){
     try{
-      setPrompt(buildImagePrompt({businessName:m.business.name,businessIndustry:m.business.industry,brief:effectiveBrief}));
+      setPrompt(buildImagePrompt({businessName:m.business.name,businessIndustry:m.business.industry,brief:effectiveBrief,format:formatId}));
       setError('');
     }catch(e){setError('Add a brief before building a prompt.');}
   }
@@ -64,7 +66,7 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
     if(!confirm){setError('Confirm the request first: every generation may be billable.');return;}
     setBusy(true);
     try{
-      const r=await fetch('/api/creative/generate',{method:'POST',headers:{'content-type':'application/json','x-meta-demo-access':token},body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,confirm:true,missionId:m.missionId})});
+      const r=await fetch('/api/creative/generate',{method:'POST',headers:{'content-type':'application/json','x-meta-demo-access':token},body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,format:formatId,confirm:true,missionId:m.missionId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(generateErrorMessage(r.status,j));
       onGenerated({asset:j.asset,url:j.url,expiresAt:j.expiresAt},m.missionId);
@@ -77,13 +79,19 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
     <div className="page-head"><div className="row"><h1>Creative Studio</h1><ModeBadge status={status}/></div><p className="lede">Generate campaign imagery from {m.business.name} briefs. Every request is explicit, metered, and review-gated.</p></div>
     <LiveErrorBanner code={status.liveError}/>
     <form className="card" onSubmit={generate}>
-      <div className="card-head"><div><h3>New generation</h3><p className="card-sub">Pick a brief, edit the prompt, confirm, then generate.</p></div></div>
+      <div className="card-head"><div><h3>New generation</h3><p className="card-sub">Pick a brief, choose a format, edit the prompt, confirm, then generate.</p></div></div>
       <div className="card-body">
         <div className="approval-grid">
           <label className="field">Brief source<select className="select" value={selected.id} onChange={e=>{setBriefId(e.target.value);setBriefText('');}}>{opts.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
           <label className="field">Brief text<textarea className="textarea" value={effectiveBrief} onChange={e=>setBriefText(e.target.value)} maxLength={1200} placeholder="Creative direction for this asset"/></label>
         </div>
-        <label className="field">Image prompt<textarea className="textarea" value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={1000} placeholder="Describe the image, or build one from the brief"/><span className="hint">Editable before every request. Empty prompts fall back to the built brief prompt.</span></label>
+        <div className="field"><span>Requested format</span>
+          <div className="row" role="group" aria-label="Requested image format">
+            {CREATIVE_FORMATS.map(f=><button key={f.id} type="button" className={'btn small '+(formatId===f.id?'primary':'ghost')} aria-pressed={formatId===f.id} onClick={()=>setFormatId(f.id)}>{f.label} · {f.width}×{f.height}</button>)}
+          </div>
+          <span className="hint">Recorded with the asset as the requested size. Native size support is unverified on this deployment — previews show the image as returned.</span>
+        </div>
+        <label className="field">Image prompt<textarea className="textarea" value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={1000} placeholder="Describe the image, or build one from the brief"/><span className="hint">Editable before every request. Your text is sent verbatim; empty prompts fall back to the built brief prompt with framing.</span></label>
         <div className="row">
           <button type="button" className="btn small ghost" onClick={useSuggestion}>Use brief suggestion</button>
         </div>
@@ -99,7 +107,7 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
         return <div className="asset-card" key={a.assetId}>
           {url?<img src={url} alt={'Generated creative for '+m.business.name} loading="lazy"/>:<p className="muted" style={{padding:12}}>Preview unavailable — reload the workspace list.</p>}
           <div className="asset-meta">
-            <div className="row">{approved?<Badge tone="ok">Approved with mission</Badge>:<Badge tone="warn">Pending review</Badge>}<Badge tone="muted">{a.mimeType}</Badge></div>
+            <div className="row">{approved?<Badge tone="ok">Approved with mission</Badge>:<Badge tone="warn">Pending review</Badge>}<Badge tone="muted">{a.mimeType}</Badge>{a.requestedFormat&&a.requestedFormat.label&&<Badge tone="muted">Requested {a.requestedFormat.label}</Badge>}</div>
             <p>{a.prompt}</p>
             <span className="mono">{a.bytes} bytes · {String(a.sha256).slice(0,12)+'…'}</span>
           </div>

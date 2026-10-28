@@ -1,7 +1,21 @@
 import {useState} from 'react';
 import {ArrowRight,Megaphone} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
+import {verifySocialHandoffBinding} from '../../lib/social-handoff';
 import {Badge,Card,EmptyState,ModeBadge,Banner,LiveErrorBanner,Spinner} from '../components/ui';
+
+function HandoffChips({draft,planHash}){
+  const h=draft.socialContract;
+  if(!h)return <small className="muted">No handoff contract yet — contracts are minted at approval.</small>;
+  const bound=verifySocialHandoffBinding(h,planHash);
+  return <div className="chip-row">
+    <span className="chip">Contract {h.channel} · {h.status.replace(/_/g,' ')}</span>
+    {h.assetId?<span className="chip">Asset {String(h.assetId).slice(0,12)+'…'}</span>:<span className="chip">No creative attached</span>}
+    {h.campaign?<span className="chip">{h.campaign}</span>:null}
+    <span className="chip">{bound?'Approval bound':'Approval unbound'}</span>
+    <span className="chip">Publish {h.publishStatus.replace(/_/g,' ')}</span>
+  </div>;
+}
 
 export default function SocialView({mission,onNavigate,token,assets,onApproved}){
   const status=missionStatus(mission);
@@ -21,7 +35,7 @@ export default function SocialView({mission,onNavigate,token,assets,onApproved})
       const r=await fetch('/api/mission/approve',{method:'POST',headers:{'content-type':'application/json','x-meta-demo-access':token},body:JSON.stringify({mission,actorId:actorId.trim(),role,decision})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(r.status===401?'Unauthorized: check the demo token.':(j.error||'Approval failed.'));
-      onApproved(j.record,mission.missionId);
+      onApproved(j.record,mission.missionId,j.mission||null);
     }catch(err){setError(err.message||'Approval failed.');}
     finally{setBusy(false);}
   }
@@ -34,11 +48,12 @@ export default function SocialView({mission,onNavigate,token,assets,onApproved})
   const m=mission;
   const missionAssets=(m.creative&&m.creative.assets)||[];
   const urlFor=id=>{const hit=(assets||[]).find(e=>e&&e.asset&&e.asset.assetId===id);return hit?hit.url:null;};
+  const planHash=m.approval&&m.approval.planHash?m.approval.planHash:'';
   return <div className="page">
     <div className="page-head"><div className="row"><h1>Social</h1><ModeBadge status={status}/><Badge tone="draft">Draft only</Badge></div><p className="lede">Facebook and Instagram plans for {m.business.name} stay in review until a real authorized integration exists.</p></div>
     <LiveErrorBanner code={status.liveError}/>
     <Banner tone="warn">Nothing here is published, scheduled, or approved for publishing. Approval status: {status.approval.replace(/_/g,' ')}.</Banner>
-    <div className="draft-grid">{m.social.map(s=><div className="draft-card" key={s.channel}><Badge tone="muted">{s.channel}</Badge><h4>Campaign draft</h4><p>{s.caption||s.copy}</p><p className="muted">Call to action: {s.cta||'—'}{s.hashtags&&s.hashtags.length>0?' · '+s.hashtags.join(' '):''}</p><div className="chip-row"><span className="chip">{(s.grounding&&s.grounding.source||'MISSION_DRAFT_DERIVED').replace(/_/g,' ')}</span>{(s.grounding&&s.grounding.facts||[]).map(f=><span className="chip" key={f}>{f}</span>)}</div><small>NOT PUBLISHED · PUBLISHING NOT APPROVED</small></div>)}</div>
+    <div className="draft-grid">{m.social.map(s=><div className="draft-card" key={s.channel}><Badge tone="muted">{s.channel}</Badge><h4>Campaign draft</h4><p>{s.caption||s.copy}</p><p className="muted">Call to action: {s.cta||'—'}{s.hashtags&&s.hashtags.length>0?' · '+s.hashtags.join(' '):''}</p><div className="chip-row"><span className="chip">{(s.grounding&&s.grounding.source||'MISSION_DRAFT_DERIVED').replace(/_/g,' ')}</span>{(s.grounding&&s.grounding.facts||[]).map(f=><span className="chip" key={f}>{f}</span>)}</div><HandoffChips draft={s} planHash={planHash}/><small>NOT PUBLISHED · PUBLISHING NOT APPROVED</small></div>)}</div>
     <Card title="Creative previews" sub="Generated assets attached to this mission, if any.">
       {missionAssets.length===0?<p className="muted">No creative assets yet. Generate them in Creative Studio.</p>:<div className="thumb-row">{missionAssets.map(a=>{const url=urlFor(a.assetId);return url?<img key={a.assetId} src={url} alt="Mission creative preview" loading="lazy"/>:<span key={a.assetId} className="chip">Preview expired</span>;})}</div>}
     </Card>

@@ -60,6 +60,10 @@ All 14 security controls required for production readiness and safe hackathon op
 | 12 | Atomic budget reservation | Synchronous ledger reservation in process memory under concurrent requests in `budget.js` | **VERIFIED** |
 | 13 | Failed call reservation release | `settleInferenceUsage(receipt, { ok: false })` rolls back reserved units on failure | **VERIFIED** |
 | 14 | Unauthenticated route denial | Direct paid routes (`reason`, `approve`, `generate`, `assets`) deny unauthenticated requests | **VERIFIED** |
+| 15 | Canonical Social Handoff Contract packaging | Channel drafts packaged into `SocialHandoffContract` with `DRAFT_ONLY` and `NOT_CONNECTED` bound to approval hash | **VERIFIED** |
+| 16 | Requested format metadata correctness | Format controls (1:1, 4:5, 9:16) labeled strictly as requested without claiming guaranteed pixel output | **VERIFIED** |
+| 17 | Tenant-scoped AI usage telemetry | Bounded buffer keyed strictly by authenticated tenant `(org, ws)`; no prompts, tokens, or costs logged | **VERIFIED** |
+| 18 | Read-only learning loop inspector | Seven-stage mission derivation with mandatory `Publish NOT CONNECTED` and `Performance NOT AVAILABLE` badges | **VERIFIED** |
 
 *Note on Local Storage & Process Memory:* Current budget, token buckets, and asset storage reside in local process memory and file paths (`.data/creative/`). A distributed deployment would require Redis/PostgreSQL backing before scaling past single-node.
 
@@ -67,7 +71,7 @@ Production isolation: no production Ralion OS code, database, Stripe, Meta ad ac
 
 ## 5. Tests
 
-128 passing tests (9 root, 119 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
+157 passing tests (9 root, 148 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
 
 ```bash
 npm test
@@ -85,11 +89,13 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/auth.test.mjs` | 7 |
 | `apps/meta-os/tests/budget-reserve.test.mjs` | 4 |
 | `apps/meta-os/tests/budget.test.mjs` | 4 |
+| `apps/meta-os/tests/creative-format.test.mjs` | 7 |
 | `apps/meta-os/tests/creative-store.test.mjs` | 6 |
 | `apps/meta-os/tests/creative.test.mjs` | 5 |
 | `apps/meta-os/tests/image-prompt.test.mjs` | 4 |
 | `apps/meta-os/tests/inference-access.test.mjs` | 7 |
 | `apps/meta-os/tests/inference-reserve.test.mjs` | 3 |
+| `apps/meta-os/tests/learning-loop.test.mjs` | 6 |
 | `apps/meta-os/tests/live-probes.test.mjs` | 3 |
 | `apps/meta-os/tests/mari.test.mjs` | 6 |
 | `apps/meta-os/tests/media-fetch.test.mjs` | 5 |
@@ -101,14 +107,16 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/pinned-transport.test.mjs` | 8 |
 | `apps/meta-os/tests/ratelimit.test.mjs` | 5 |
 | `apps/meta-os/tests/social-copy.test.mjs` | 4 |
+| `apps/meta-os/tests/social-handoff.test.mjs` | 9 |
+| `apps/meta-os/tests/telemetry.test.mjs` | 7 |
 | `apps/meta-os/tests/website-ingest.test.mjs` | 13 |
 
-Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), and [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (11 static pages generated).
+Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), and [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (12 static pages generated).
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (128/128 passing).
+1. Clone the repo and run the two test commands above (157/157 passing).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
-3. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission, creative prompt composer, unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with safety chips, and human approval minting.
-4. Ask the team to show the Muse Code session logs, Slice 2 and Slice 3 evidence docs, and the owner's live probe output. These are not in Git.
+3. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, and activity workspace with usage telemetry and 7-stage learning loop inspector.
+4. Ask the team to show the Muse Code session logs, Slice 2, Slice 3, and Post-Extraction evidence docs, and the owner's live probe output. These are not in Git.
 

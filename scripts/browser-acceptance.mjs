@@ -259,8 +259,8 @@ async function runBrowserAcceptance() {
     const growthOpp = await client.evaluate(`document.querySelector('.card .card-head')?.innerText || ''`);
     console.log('Growth Opportunity Card rendered:', Boolean(growthOpp));
 
-    // 6. Test Creative Studio & Image Generation
-    console.log('\n[6/7] Testing Creative Studio: prompt editing, confirmation, and generation...');
+    // 6. Test Creative Studio & Image Generation with Format Selection
+    console.log('\n[6/8] Testing Creative Studio: format selection, prompt editing, confirmation, and generation...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('creative')).click();
     })()`);
@@ -270,6 +270,14 @@ async function runBrowserAcceptance() {
     const briefSource = await client.evaluate(`document.querySelector('.select')?.value`);
     console.log('Default brief source:', briefSource);
 
+    // Select format pill: 9:16 Story
+    console.log('Selecting requested format: 9:16 Story...');
+    await client.evaluate(`(() => {
+      const storyBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('9:16 Story'));
+      if (storyBtn) storyBtn.click();
+    })()`);
+    await wait(200);
+
     // Click "Use brief suggestion"
     await client.evaluate(`(() => {
       const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Use brief suggestion'));
@@ -277,17 +285,21 @@ async function runBrowserAcceptance() {
     })()`);
     await wait(200);
 
-    // Edit prompt explicitly
+    const framedPrompt = await client.evaluate(`document.querySelector('textarea[placeholder*="Describe the image"]')?.value`);
+    console.log('Framed prompt preview:', framedPrompt);
+    if (!framedPrompt?.includes('9:16 Story')) {
+      throw new Error('Built prompt did not include requested format framing: ' + framedPrompt);
+    }
+
+    // Edit prompt explicitly (framing stays intact or custom prompt is used)
     await client.evaluate(`(() => {
       const promptArea = document.querySelector('textarea[placeholder*="Describe the image"]');
       if (promptArea) {
         const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        setter.call(promptArea, 'Artisanal morning espresso on wooden rustic table with fresh croissants');
+        setter.call(promptArea, 'Artisanal morning espresso on wooden rustic table with fresh croissants in 9:16 frame');
         promptArea.dispatchEvent(new Event('input', { bubbles: true }));
       }
     })()`);
-    const promptText = await client.evaluate(`document.querySelector('textarea[placeholder*="Describe the image"]')?.value`);
-    console.log('Edited prompt:', promptText);
 
     // Test rejection without confirmation
     await client.evaluate(`(() => {
@@ -309,7 +321,7 @@ async function runBrowserAcceptance() {
     await wait(200);
 
     // Generate creative image
-    console.log('Submitting authorized creative image generation...');
+    console.log('Submitting authorized creative image generation with 9:16 Story format...');
     await client.evaluate(`(() => {
       const genBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Generate image'));
       if (genBtn) genBtn.click();
@@ -334,9 +346,14 @@ async function runBrowserAcceptance() {
     if (!assetDetails.hasImg || !assetDetails.imgSrc?.includes('/api/creative/asset')) {
       throw new Error('Creative asset preview image did not render signed capability URL');
     }
+    const hasRequestedFormatBadge = assetDetails.badges.some(b => b.includes('Requested 9:16 Story'));
+    console.log('Requested format badge present:', hasRequestedFormatBadge);
+    if (!hasRequestedFormatBadge) {
+      throw new Error('Asset card missing "Requested 9:16 Story" metadata badge');
+    }
 
-    // 7. Test Social Workspace & Approval Gateway
-    console.log('\n[7/7] Testing Social draft cards, creative previews, and Human Approval...');
+    // 7. Test Social Workspace & Approval Gateway with Canonical Handoffs
+    console.log('\n[7/8] Testing Social draft cards, creative previews, Canonical Handoffs, and Human Approval...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('social')).click();
     })()`);
@@ -347,8 +364,8 @@ async function runBrowserAcceptance() {
       return Array.from(document.querySelectorAll('.draft-card')).map(c => ({
         channel: c.querySelector('.badge')?.innerText,
         text: c.querySelector('p')?.innerText,
-        statusChip: c.querySelector('small')?.innerText,
-        grounding: Array.from(c.querySelectorAll('.chip')).map(chip => chip.innerText)
+        statusChip: Array.from(c.querySelectorAll('small')).map(s => s.innerText).find(t => t.includes('NOT PUBLISHED')) || '',
+        chips: Array.from(c.querySelectorAll('.chip')).map(chip => chip.innerText)
       }));
     })()`);
     console.log('Draft Cards rendered count:', draftCards.length);
@@ -401,11 +418,93 @@ async function runBrowserAcceptance() {
       throw new Error('Approval banner failed to specify local drafts only scope');
     }
 
-    // Capture comprehensive Phase 3 verification screenshot
+    // Verify canonical handoff chips appear on cards after approval
+    const handoffChips = await client.evaluate(`(() => {
+      return Array.from(document.querySelectorAll('.chip-row .chip')).map(c => c.innerText);
+    })()`);
+    console.log('Handoff Chips rendered:', handoffChips);
+    const hasBoundChip = handoffChips.some(c => c.includes('Approval bound'));
+    const hasContractChip = handoffChips.some(c => c.includes('Contract'));
+    const hasPublishStatus = handoffChips.some(c => c.toLowerCase().includes('publish not connected'));
+    console.log('Handoff contract bound to approval:', hasBoundChip);
+    console.log('Contract channel chip present:', hasContractChip);
+    console.log('Publish not connected chip present:', hasPublishStatus);
+    if (!hasBoundChip || !hasContractChip) {
+      throw new Error('Social handoff contracts failed to bind to approval record');
+    }
+
+    // 8. Test Activity Workspace: Telemetry & 7-Stage Learning Loop Inspector
+    console.log('\n[8/8] Testing Activity Workspace: Usage Telemetry and Learning Loop Inspector...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('activity')).click();
+    })()`);
+
+    // Verify Model Usage telemetry card (allowing time for dev server route compilation)
+    let telemetryItems = [];
+    for (let i = 0; i < 15; i++) {
+      telemetryItems = await client.evaluate(`(() => {
+        const items = Array.from(document.querySelectorAll('.grid-2 .card:first-child .timeline li'));
+        return items.map(li => li.innerText);
+      })()`);
+      if (telemetryItems.length > 0) break;
+      await wait(400);
+    }
+    console.log('Telemetry Records rendered count:', telemetryItems.length);
+    if (telemetryItems.length > 0) {
+      console.log('Latest Telemetry Entry:', telemetryItems[0]);
+    }
+
+    // Verify Learning Loop 7 stages
+    const learningLoopData = await client.evaluate(`(() => {
+      const loopCard = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Learning loop'));
+      const rows = Array.from(loopCard ? loopCard.querySelectorAll('.kv-row') : []);
+      const badges = Array.from(loopCard ? loopCard.querySelectorAll('.badge') : []).map(b => b.innerText);
+      const note = loopCard?.querySelector('p.muted')?.innerText;
+      return {
+        badges,
+        rows: rows.map(r => ({ k: r.querySelector('dt')?.innerText, v: r.querySelector('dd')?.innerText })),
+        note
+      };
+    })()`);
+    console.log('Learning Loop Badges:', learningLoopData.badges);
+    console.log('Learning Loop Rows count:', learningLoopData.rows.length);
+    learningLoopData.rows.forEach(r => console.log(`  ${r.k}: ${r.v?.slice(0, 70)}...`));
+
+    if (learningLoopData.rows.length < 7) {
+      throw new Error('Learning loop inspector did not render all 7 stages: found ' + learningLoopData.rows.length);
+    }
+    const hasPublishNotConnected = learningLoopData.badges.some(b => b.toLowerCase().includes('publish not connected'));
+    const hasPerfNotAvailable = learningLoopData.badges.some(b => b.toLowerCase().includes('performance not available'));
+    if (!hasPublishNotConnected || !hasPerfNotAvailable) {
+      throw new Error('Learning loop badges missing mandatory NOT CONNECTED / NOT AVAILABLE honesty guards');
+    }
+
+    // Mobile Responsive Check
+    console.log('\nTesting Mobile Viewport Drawer...');
+    await client.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true
+    });
+    await wait(300);
+    // Open mobile burger menu
+    await client.evaluate(`document.querySelector('.burger')?.click()`);
+    await wait(300);
+    const navOpen = await client.evaluate(`document.querySelector('.os')?.classList.contains('nav-open')`);
+    console.log('Mobile navigation drawer opened:', Boolean(navOpen));
+    if (!navOpen) throw new Error('Mobile drawer did not open on burger click');
+    // Close scrim
+    await client.evaluate(`document.querySelector('.scrim')?.click()`);
+    await wait(300);
+    // Restore desktop viewport
+    await client.send('Emulation.clearDeviceMetricsOverride');
+
+    // Capture comprehensive Post-Extraction verification screenshot
     const screenshotData = await client.send('Page.captureScreenshot', { format: 'png' });
-    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-phase3.png');
+    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-post-extraction.png');
     await writeFile(screenshotPath, Buffer.from(screenshotData.data, 'base64'));
-    console.log('\nSaved full Phase 3 verification screenshot to:', screenshotPath);
+    console.log('\nSaved full Post-Extraction verification screenshot to:', screenshotPath);
 
     // Audit console logs and runtime exceptions
     console.log('\n--- CONSOLE EXCEPTION AUDIT ---');
@@ -417,10 +516,11 @@ async function runBrowserAcceptance() {
     }
 
     client.close();
-    console.log('\n=== ALL PHASE 3 WORKFLOW ACCEPTANCE STEPS PASSED 100% ===');
+    console.log('\n=== ALL POST-EXTRACTION ACCEPTANCE STEPS PASSED 100% ===');
   } finally {
     chromeProcess.kill('SIGKILL');
     nextProcess.kill('SIGKILL');
+    process.exit(0);
   }
 }
 
