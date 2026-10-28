@@ -30,7 +30,11 @@ export function hashMissionPlan(mission) {
     missionId: mission.missionId,
     business: mission.business,
     growth: mission.growth?.opportunity || '',
-    social: Array.isArray(mission.social) ? mission.social.map(s => ({ channel: s.channel, copy: s.copy })) : []
+    creative: {
+      brief: mission.creative?.brief || '',
+      assets: Array.isArray(mission.creative?.assets) ? mission.creative.assets.map(a => ({ assetId: a.assetId, prompt: a.prompt, mimeType: a.mimeType, bytes: a.bytes, sha256: a.sha256, reviewStatus: a.reviewStatus })) : []
+    },
+    social: Array.isArray(mission.social) ? mission.social.map(s => ({ channel: s.channel, copy: s.copy, caption: s.caption || '', cta: s.cta || '' })) : []
   };
   return createHash('sha256').update(JSON.stringify(canonical), 'utf8').digest('hex');
 }

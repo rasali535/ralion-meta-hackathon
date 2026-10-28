@@ -15,10 +15,14 @@ test('validates mission input before any ingestion',()=>{
   assert.throws(()=>planMission({}),/required/);
   const f=missionInput({...base,website:'https://example.org'});
   assert.equal(f.website,'https://example.org');
+  const alias=missionInput({businessName:'Ali Shoes',industry:'Retail',goal:'Expand sales',websiteUrl:'https://example.org'});
+  assert.equal(alias.name,'Ali Shoes');
+  assert.equal(alias.objective,'Expand sales');
+  assert.equal(alias.website,'https://example.org');
 });
 test('keeps reference-only behavior without evidence',()=>{
   const m=planMission({...base,website:'https://example.org'});
-  assert.equal(m.schemaVersion,'1.1');
+  assert.equal(m.schemaVersion,'1.2');
   assert.equal(m.evidence.websiteRetrieved,false);
   assert.equal(m.evidence.websiteStatus,'REFERENCE_ONLY_NOT_CRAWLED');
   assert.equal(m.evidence.site,null);

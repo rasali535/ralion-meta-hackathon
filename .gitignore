@@ -6,3 +6,7 @@ node_modules/
 dist/
 coverage/
 *.log
+.data/
+tests/.tmp/
+apps/meta-os/.verify/
+
