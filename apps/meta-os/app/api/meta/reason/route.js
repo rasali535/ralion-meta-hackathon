@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server';
 import {reasonWithMeta,MODEL_IDS} from '../../../../lib/meta/provider';
 import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '../../../../lib/inference-access';
 import {recordModelUsage} from '../../../../lib/telemetry';
+import {extractTokenFromRequest} from '../../../../lib/session';
 // Paid inference: shared guard (key, master switch, token, rate, budget),
 // atomic budget reserve before the model call, settle after.
 // Buckets are per-process memory. Telemetry records verified call facts
@@ -12,7 +13,8 @@ export async function POST(req){
     const raw=await req.text();if(raw.length>5000)return NextResponse.json({error:'Payload too large'},{status:413});
     const data=JSON.parse(raw);
     const mode=data.mode==='wonder'?'wonder':'spark';
-    const access=checkInferenceAccess({presentedToken:req.headers.get('x-meta-demo-access'),mode});
+    const token=extractTokenFromRequest(req);
+    const access=checkInferenceAccess({presentedToken:token,mode});
     const receipt=reserveInferenceUsage({organizationId:access.organizationId,workspaceId:access.workspaceId,mode});
     const t0=Date.now();
     let result;

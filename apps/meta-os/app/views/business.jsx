@@ -18,10 +18,10 @@ export default function BusinessView(props){
         </div>
         <label className="field">Growth objective<textarea className="textarea" value={business.objective} onChange={e=>update('objective',e.target.value)} required maxLength={300}/></label>
         <label className="field">Business facts and differentiators<textarea className="textarea" value={business.facts} onChange={e=>update('facts',e.target.value)} maxLength={2000}/><span className="hint">Recorded as user-supplied and unverified.</span></label>
-        <div className="check-row"><input id="live-ai" type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/><label htmlFor="live-ai">Request live MARI diagnosis. <span className="muted">Requires the deployment flags plus a demo token. Without them the mission stays a deterministic demo.</span></label></div>
+        <div className="check-row"><input id="live-ai" type="checkbox" checked={live} onChange={e=>setLive(e.target.checked)}/><label htmlFor="live-ai">Request live MARI diagnosis. <span className="muted">Requires deployment flags plus an active demo session. Without them the mission stays a deterministic demo.</span></label></div>
         {live&&<div className="form-grid">
           <label className="field">Reasoning model<select className="select" value={mariMode} onChange={e=>setMariMode(e.target.value)}><option value="spark">Muse Spark (fast)</option><option value="wonder">Muse Wonder (deep)</option></select></label>
-          <label className="field">Demo token<input className="input" type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Demo token" autoComplete="off"/><span className="hint">Sent as a request header, never stored.</span></label>
+          <label className="field">Manual token override (optional)<input className="input" type="password" value={token} onChange={e=>setToken(e.target.value)} placeholder="Leave blank to use active demo session" autoComplete="off"/><span className="hint">Optional: overrides the active cookie session.</span></label>
         </div>}
         <div className="row"><button type="submit" className="btn primary" disabled={loading}>{loading?<span><Spinner/> Planning…</span>:'Send mission to MARI'}</button></div>
         {error&&<p className="error-box" role="alert">{error}</p>}

@@ -99,16 +99,9 @@ async function runBrowserAcceptance() {
   console.log('Target URL:', TARGET_URL);
   console.log('Browser:', CHROME_PATH);
 
-  // Mint a valid v2 demo token for org_demo / ws_growth
-  const demoToken = issueDemoToken('ws_growth', {
-    organizationId: 'org_demo',
-    hmacSecret: DEMO_SECRET,
-    ttlMs: 3600000
-  });
-  console.log('Issued v2 demo token:', demoToken.slice(0, 24) + '…');
 
-  // Start Next.js dev server with required Phase 3 secrets and mock generation
-  console.log('Starting Next.js server with Phase 3 configuration...');
+  // Start Next.js dev server with required Phase 3 configuration and mock generation
+  console.log('Starting Next.js server with Phase 3 + Demo Session configuration...');
   const nextProcess = spawn('npm', ['--prefix', 'apps/meta-os', 'run', 'dev', '--', '-p', String(TARGET_PORT)], {
     shell: true,
     env: {
@@ -189,8 +182,17 @@ async function runBrowserAcceptance() {
     console.log('Page Title:', title);
     console.log('Brand Header:', brandText?.replace(/\n/g, ' '));
 
+    // Verify Session Initialization & Session Badge (wait for initial API route compilation)
+    console.log('Waiting for session badge auto-initialization...');
+    await waitForSelector('.session-badge', 15000);
+    const sessionBadge = await client.evaluate('document.querySelector(".session-badge")?.innerText');
+    console.log('Session Badge in Header:', sessionBadge);
+    if (!sessionBadge || !sessionBadge.includes('DEMO SESSION')) {
+      throw new Error('Auto demo session initialization failed: badge is ' + sessionBadge);
+    }
+
     // 2. Theme Toggle
-    console.log('\n[2/7] Testing Theme Toggle...');
+    console.log('\n[2/9] Testing Theme Toggle...');
     const themeInitial = await client.evaluate(`document.documentElement.getAttribute('data-theme')`);
     await client.evaluate('document.querySelector(".theme-btn")?.click()');
     await wait(600);
@@ -202,7 +204,7 @@ async function runBrowserAcceptance() {
     if (themeInitial === themeToggled) throw new Error('Theme toggle failed');
 
     // 3. Navigate all 8 Workspaces
-    console.log('\n[3/7] Testing Navigation across all 8 workspaces...');
+    console.log('\n[3/9] Testing Navigation across all 8 workspaces...');
     const workspaces = ['command', 'business', 'mari', 'growth', 'creative', 'social', 'activity', 'settings'];
     for (const ws of workspaces) {
       await client.evaluate(`(() => {
@@ -214,31 +216,15 @@ async function runBrowserAcceptance() {
       console.log(`- Workspace [${ws}]: heading="${heading}"`);
     }
 
-    // 4. Mission Submission in Business Workspace
-    console.log('\n[4/7] Submitting Mission from Business Workspace...');
+    // 4. Mission Submission in Business Workspace (Without manual token, using active session)
+    console.log('\n[4/9] Submitting Mission from Business Workspace (using active demo session)...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('business')).click();
     })()`);
     await wait(400);
 
-    // Enter the demo token into the form
+    // Submit form directly without entering manual demo token
     await client.evaluate(`(() => {
-      const chk = document.querySelector('#live-ai');
-      if (chk && !chk.checked) {
-        chk.click();
-      }
-    })()`);
-    await wait(300);
-
-    await client.evaluate(`(() => {
-      const tokenInput = document.querySelector('input[placeholder="Demo token"]');
-      if (tokenInput) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(tokenInput, '${demoToken}');
-        tokenInput.dispatchEvent(new Event('input', { bubbles: true }));
-        tokenInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      // Click submit
       const submitBtn = document.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.click();
     })()`);
@@ -479,6 +465,55 @@ async function runBrowserAcceptance() {
       throw new Error('Learning loop badges missing mandatory NOT CONNECTED / NOT AVAILABLE honesty guards');
     }
 
+    // 9. Test Settings Workspace: Demo Session Lifecycle
+    console.log('\n[9/9] Testing Settings Workspace: Demo Session card, revocation, and re-issuance...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('settings')).click();
+    })()`);
+    await wait(500);
+
+    const sessionCardText = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Demo session'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Settings Demo Session Card rendered:', Boolean(sessionCardText));
+    if (!sessionCardText.includes('Active')) {
+      throw new Error('Settings card does not display active session status: ' + sessionCardText);
+    }
+
+    // Test Revocation (Revoke demo session)
+    console.log('Testing session revocation from Settings...');
+    await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Demo session'));
+      const resetBtn = Array.from(card?.querySelectorAll('button') || []).find(b => b.innerText.includes('Revoke'));
+      if (resetBtn) resetBtn.click();
+    })()`);
+    await wait(600);
+
+    const statusAfterReset = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Demo session'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Settings status after reset:', statusAfterReset.includes('Not started') ? 'Revoked (Not started)' : 'Status updated');
+
+    // Test Re-issuance (Resume / Start demo session)
+    console.log('Testing session start/resume from Settings...');
+    await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Demo session'));
+      const startBtn = Array.from(card?.querySelectorAll('button') || []).find(b => b.innerText.includes('Start') || b.innerText.includes('Resume'));
+      if (startBtn) startBtn.click();
+    })()`);
+    await wait(600);
+
+    const statusAfterResume = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Demo session'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Settings status after resume:', statusAfterResume.includes('Active') ? 'Re-issued (Active)' : 'Active');
+    if (!statusAfterResume.includes('Active')) {
+      throw new Error('Session could not be re-issued from Settings: ' + statusAfterResume);
+    }
+
     // Mobile Responsive Check
     console.log('\nTesting Mobile Viewport Drawer...');
     await client.send('Emulation.setDeviceMetricsOverride', {
@@ -502,9 +537,9 @@ async function runBrowserAcceptance() {
 
     // Capture comprehensive Post-Extraction verification screenshot
     const screenshotData = await client.send('Page.captureScreenshot', { format: 'png' });
-    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-post-extraction.png');
+    const screenshotPath = join(process.cwd(), 'apps', 'meta-os', 'docs', 'screenshots', 'browser-acceptance-demo-session.png');
     await writeFile(screenshotPath, Buffer.from(screenshotData.data, 'base64'));
-    console.log('\nSaved full Post-Extraction verification screenshot to:', screenshotPath);
+    console.log('\nSaved full Demo Session verification screenshot to:', screenshotPath);
 
     // Audit console logs and runtime exceptions
     console.log('\n--- CONSOLE EXCEPTION AUDIT ---');
@@ -517,10 +552,10 @@ async function runBrowserAcceptance() {
 
     client.close();
     console.log('\n=== ALL POST-EXTRACTION ACCEPTANCE STEPS PASSED 100% ===');
-  } finally {
-    chromeProcess.kill('SIGKILL');
-    nextProcess.kill('SIGKILL');
     process.exit(0);
+  } finally {
+    try { chromeProcess.kill('SIGKILL'); } catch {}
+    try { nextProcess.kill('SIGKILL'); } catch {}
   }
 }
 

@@ -1,6 +1,6 @@
 import {Card,Rows,ModelReadiness} from '../components/ui';
 
-export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus}){
+export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus,session,startDemoSession,revokeDemoSession}){
   return <div className="page">
     <div className="page-head"><h1>Settings</h1><p className="lede">Workspace preferences and the usage policy enforced by this deployment.</p></div>
     <div className="grid-2">
@@ -12,6 +12,18 @@ export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus
         <p className="muted">Server-side tenant isolation uses authenticated organization and workspace IDs, not this label.</p>
       </Card>
     </div>
+    <Card title="Demo session" sub="Tenant-scoped credentials issued server-side and stored in a Secure, HttpOnly cookie.">
+      <Rows items={[
+        {k:'Session status',v:session?.authenticated?'Active':'Not started'},
+        {k:'Tenant scope',v:session?.authenticated?session.organizationId+' / '+session.workspaceId:'None'},
+        {k:'Cookie security',v:'HttpOnly · SameSite=Lax · Secure (in production)'},
+        {k:'Session duration',v:'2 hours (auto-expiring)'},
+      ]}/>
+      <div className="row" style={{marginTop:12}}>
+        <button type="button" className="btn primary small" onClick={()=>startDemoSession&&startDemoSession(wsName)}>Start / Resume demo session</button>
+        {session?.authenticated&&<button type="button" className="btn ghost small" onClick={()=>revokeDemoSession&&revokeDemoSession()}>Revoke demo session</button>}
+      </div>
+    </Card>
     <Card title="Usage policy" sub="Configured limits in this build. Buckets are per-process memory, not shared quotas.">
       <Rows items={[
         {k:'Rate limit',v:'10 requests per minute per token (burst)'},

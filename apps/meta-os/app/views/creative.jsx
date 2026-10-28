@@ -14,7 +14,7 @@ function briefOptions(mission){
 }
 function generateErrorMessage(status,body){
   if(status===403)return 'Image generation is disabled on this deployment.';
-  if(status===401)return 'A valid demo token is required. Set it in the Business workspace.';
+  if(status===401)return 'Demo session expired or unauthorized. Please start or resume a demo session.';
   if(status===429)return 'Image quota or rate limit exceeded. Try again later.';
   if(status===413)return 'Request too large.';
   if(body&&typeof body.error==='string'&&/^(CREATIVE_|IMAGE_)/.test(body.error))return 'Request rejected: '+body.error.replace(/_/g,' ').toLowerCase()+'.';
@@ -22,7 +22,7 @@ function generateErrorMessage(status,body){
   return 'Image generation failed.';
 }
 
-export default function CreativeView({mission,onNavigate,token,assets,setAssets,onGenerated}){
+export default function CreativeView({mission,onNavigate,token,session,startDemoSession,assets,setAssets,onGenerated}){
   const status=missionStatus(mission);
   const [briefId,setBriefId]=useState('growth');
   const [briefText,setBriefText]=useState('');
@@ -34,12 +34,14 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
   const [error,setError]=useState('');
   const [listed,setListed]=useState(false);
   useEffect(()=>{
-    if(!token||listed)return;
-    fetch('/api/creative/assets',{headers:{'x-meta-demo-access':token}}).then(r=>r.json()).then(j=>{
+    if(listed)return;
+    const headers={};
+    if(token)headers['x-meta-demo-access']=token;
+    fetch('/api/creative/assets',{headers}).then(r=>r.json()).then(j=>{
       if(j&&Array.isArray(j.assets))setAssets(j.assets);
       setListed(true);
     }).catch(()=>setListed(true));
-  },[token]);
+  },[listed,token,session]);
   if(status.presence==='none'){
     return <div className="page">
       <div className="page-head"><h1>Creative Studio</h1><p className="lede">Campaign concepts and generated assets.</p></div>
@@ -62,11 +64,16 @@ export default function CreativeView({mission,onNavigate,token,assets,setAssets,
   async function generate(e){
     e.preventDefault();
     setError('');setNotice('');
-    if(!token){setError('A valid demo token is required. Set it in the Business workspace.');return;}
+    if(!token && !session?.authenticated){
+      setError('A demo session is required. Please start or resume a demo session.');
+      return;
+    }
     if(!confirm){setError('Confirm the request first: every generation may be billable.');return;}
     setBusy(true);
     try{
-      const r=await fetch('/api/creative/generate',{method:'POST',headers:{'content-type':'application/json','x-meta-demo-access':token},body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,format:formatId,confirm:true,missionId:m.missionId})});
+      const headers={'content-type':'application/json'};
+      if(token)headers['x-meta-demo-access']=token;
+      const r=await fetch('/api/creative/generate',{method:'POST',headers,body:JSON.stringify({brief:{source:selected.id,text:effectiveBrief,businessName:m.business.name,businessIndustry:m.business.industry},prompt,format:formatId,confirm:true,missionId:m.missionId})});
       const j=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(generateErrorMessage(r.status,j));
       onGenerated({asset:j.asset,url:j.url,expiresAt:j.expiresAt},m.missionId);

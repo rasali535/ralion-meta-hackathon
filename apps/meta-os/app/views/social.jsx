@@ -17,7 +17,7 @@ function HandoffChips({draft,planHash}){
   </div>;
 }
 
-export default function SocialView({mission,onNavigate,token,assets,onApproved}){
+export default function SocialView({mission,onNavigate,token,session,assets,onApproved}){
   const status=missionStatus(mission);
   const [actorId,setActorId]=useState('');
   const [role,setRole]=useState('owner');
@@ -28,13 +28,15 @@ export default function SocialView({mission,onNavigate,token,assets,onApproved})
   const decided=approved||rejected;
   async function decide(decision){
     setError('');
-    if(!token){setError('A valid demo token is required. Set it in the Business workspace.');return;}
+    if(!token && !session?.authenticated){setError('A valid demo session is required. Start a session from Settings or the topbar.');return;}
     if(!actorId.trim()){setError('Enter the approver identity.');return;}
     setBusy(true);
     try{
-      const r=await fetch('/api/mission/approve',{method:'POST',headers:{'content-type':'application/json','x-meta-demo-access':token},body:JSON.stringify({mission,actorId:actorId.trim(),role,decision})});
+      const headers={'content-type':'application/json'};
+      if(token)headers['x-meta-demo-access']=token;
+      const r=await fetch('/api/mission/approve',{method:'POST',credentials:'include',headers,body:JSON.stringify({mission,actorId:actorId.trim(),role,decision})});
       const j=await r.json().catch(()=>({}));
-      if(!r.ok)throw new Error(r.status===401?'Unauthorized: check the demo token.':(j.error||'Approval failed.'));
+      if(!r.ok)throw new Error(r.status===401?'Unauthorized: check the demo session or token.':(j.error||'Approval failed.'));
       onApproved(j.record,mission.missionId,j.mission||null);
     }catch(err){setError(err.message||'Approval failed.');}
     finally{setBusy(false);}
@@ -59,7 +61,7 @@ export default function SocialView({mission,onNavigate,token,assets,onApproved})
     </Card>
     <Card title="Human approval" sub="Approvals cover these exact drafts and creatives — any change invalidates them.">
       {decided?<Banner tone={approved?'ok':'error'}>{approved?'Approved':'Rejected'} by {m.approval.actor?m.approval.actor.id+' ('+m.approval.actor.role+')':'unknown'} · Scope: local drafts only · {m.approval.approvedAt||''}</Banner>:<>
-        {!token&&<Banner tone="info">Set a demo token in the Business workspace to approve as an authenticated tenant.</Banner>}
+        {!token&&!session?.authenticated&&<Banner tone="info">Start a demo session from Settings or the topbar to approve as an authenticated tenant.</Banner>}
         <div className="approval-grid">
           <label className="field">Approver identity<input className="input" value={actorId} onChange={e=>setActorId(e.target.value)} maxLength={120} placeholder="Demo approver name"/></label>
           <label className="field">Role<select className="select" value={role} onChange={e=>setRole(e.target.value)}><option value="owner">Owner</option><option value="growth_admin">Growth admin</option><option value="marketing_lead">Marketing lead</option></select></label>

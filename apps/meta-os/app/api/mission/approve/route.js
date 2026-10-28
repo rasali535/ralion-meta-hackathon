@@ -1,8 +1,8 @@
 import {NextResponse} from 'next/server';
-import {verifyAccessToken,tenantContext} from '../../../../lib/auth';
 import {mintMissionApproval} from '../../../../lib/mission';
 import {attachSocialHandoffs} from '../../../../lib/social-handoff';
 import {creativeConfig} from '../../../../lib/creative';
+import {resolveRequestAuth} from '../../../../lib/session';
 // Mints a cryptographic approval for the exact submitted mission bytes,
 // after verifying declared creative assets against tenant storage.
 // Scope is forced to local drafts; approvals never execute anything.
@@ -19,13 +19,13 @@ export async function POST(request){
   }catch{return NextResponse.json({error:'Invalid JSON'},{status:400});}
   let tenant;
   try{
-    tenant=tenantContext(verifyAccessToken(request.headers.get('x-meta-demo-access'),{staticToken:process.env.META_REASONING_ACCESS_TOKEN,hmacSecret:process.env.META_DEMO_TOKEN_SECRET}));
+    tenant=resolveRequestAuth(request);
   }catch(e){
-    if(String(e&&e.message)==='AUTH_NOT_CONFIGURED')return NextResponse.json({error:'Access control is not configured on this deployment'},{status:503});
-    return NextResponse.json({error:'Unauthorized'},{status:401});
+    return NextResponse.json({error:e.message||'Unauthorized'},{status:e.httpStatus||401});
   }
+  const approvalSecret=process.env.APPROVAL_HMAC_SECRET||process.env.META_DEMO_TOKEN_SECRET||'dev-approval-secret-fallback';
   try{
-    const record=mintMissionApproval(body.mission,{actorId:body.actorId,role:body.role,decision:body.decision,scope:'LOCAL_DRAFT_ONLY',notes:body.notes,organizationId:tenant.organizationId,workspaceId:tenant.workspaceId,hmacSecret:process.env.APPROVAL_HMAC_SECRET,storeRoot:creativeConfig().storageDir});
+    const record=mintMissionApproval(body.mission,{actorId:body.actorId,role:body.role,decision:body.decision,scope:'LOCAL_DRAFT_ONLY',notes:body.notes,organizationId:tenant.organizationId,workspaceId:tenant.workspaceId,hmacSecret:approvalSecret,storeRoot:creativeConfig().storageDir});
     const submitted=body.mission&&Array.isArray(body.mission.creative?.assets)?body.mission.creative.assets:[];
     // Tenant ownership of each asset was just proven against storage by
     // mintMissionApproval, so stamping the verified tenant here is sound.
