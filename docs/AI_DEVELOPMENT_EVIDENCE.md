@@ -64,14 +64,16 @@ All 14 security controls required for production readiness and safe hackathon op
 | 16 | Requested format metadata correctness | Format controls (1:1, 4:5, 9:16) labeled strictly as requested without claiming guaranteed pixel output | **VERIFIED** |
 | 17 | Tenant-scoped AI usage telemetry | Bounded buffer keyed strictly by authenticated tenant `(org, ws)`; no prompts, tokens, or costs logged | **VERIFIED** |
 | 18 | Read-only learning loop inspector | Seven-stage mission derivation with mandatory `Publish NOT CONNECTED` and `Performance NOT AVAILABLE` badges | **VERIFIED** |
+| 19 | Demo session isolation & impersonation prevention | `createDemoSession` pins organization to `org_demo`, sanitizes workspace name, sets `HttpOnly`, `SameSite=Lax`, `Secure` cookies with 2h TTL | **VERIFIED** |
+| 20 | Instant session revocation & expiry | In-memory revocation registry `revokeSession` invalidates active cookies before TTL expiry | **VERIFIED** |
 
-*Note on Local Storage & Process Memory:* Current budget, token buckets, and asset storage reside in local process memory and file paths (`.data/creative/`). A distributed deployment would require Redis/PostgreSQL backing before scaling past single-node.
+*Note on Local Storage & Process Memory:* Current budget, token buckets, session revocation registry, and asset storage reside in local process memory and file paths (`.data/creative/`). On Vercel serverless environments, storage automatically falls back to ephemeral `/tmp/ralion-creative` as documented in [docs/VERCEL_STORAGE_LIMITATIONS.md](VERCEL_STORAGE_LIMITATIONS.md). A production deployment uses external object storage (S3/R2) and database persistence.
 
 Production isolation: no production Ralion OS code, database, Stripe, Meta ad account or customer data is used in this repository. Source repository `alinew` was read only.
 
 ## 5. Tests
 
-157 passing tests (9 root, 148 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
+165 passing tests (9 root, 156 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
 
 ```bash
 npm test
@@ -106,17 +108,19 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/navigation.test.mjs` | 5 |
 | `apps/meta-os/tests/pinned-transport.test.mjs` | 8 |
 | `apps/meta-os/tests/ratelimit.test.mjs` | 5 |
+| `apps/meta-os/tests/session.test.mjs` | 8 |
 | `apps/meta-os/tests/social-copy.test.mjs` | 4 |
 | `apps/meta-os/tests/social-handoff.test.mjs` | 9 |
 | `apps/meta-os/tests/telemetry.test.mjs` | 7 |
 | `apps/meta-os/tests/website-ingest.test.mjs` | 13 |
 
-Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), and [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (12 static pages generated).
+Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), and [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (13 static/dynamic routes generated).
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (157/157 passing).
+1. Clone the repo and run the two test commands above (165/165 passing).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
-3. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, and activity workspace with usage telemetry and 7-stage learning loop inspector.
-4. Ask the team to show the Muse Code session logs, Slice 2, Slice 3, and Post-Extraction evidence docs, and the owner's live probe output. These are not in Git.
+3. Observe automatic demo session initialization: topbar displays `DEMO SESSION` badge; all protected actions (mission planning, creative generation, social approval, usage telemetry) authenticate seamlessly via server-issued `HttpOnly` session cookie without requiring manually entering or pasting any token.
+4. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission with active session, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, activity workspace with usage telemetry and 7-stage learning loop inspector, and settings workspace session revocation and re-issuance lifecycle.
+5. Ask the team to show the Muse Code session logs, Slice 2, Slice 3, and Post-Extraction evidence docs, and the owner's live probe output. These are not in Git.
 

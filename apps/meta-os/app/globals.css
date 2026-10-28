@@ -67,6 +67,7 @@ button{font:inherit;color:inherit}
 .crumbs strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .env-badge{font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--amber);border:1px solid var(--amber);border-radius:99px;padding:3px 10px;white-space:nowrap}
+.session-badge{font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:3px 10px;white-space:nowrap}
 .theme-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:7px;display:flex;cursor:pointer;color:var(--ink-2)}
 .theme-btn:hover{color:var(--ink);border-color:var(--ink-3)}
 .ws-chip{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:4px 12px 4px 4px;cursor:pointer;font-size:13px;font-weight:600;max-width:220px}
@@ -196,6 +197,7 @@ button{font:inherit;color:inherit}
   .page-head h1{font-size:22px}
   .topbar{padding:0 12px;gap:10px}
   .env-badge{display:none}
+  .session-badge{display:none}
   .ws-chip{max-width:150px}
   .form-grid{grid-template-columns:1fr}
   .kv-row{flex-direction:column;gap:2px}

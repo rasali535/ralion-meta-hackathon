@@ -8,6 +8,7 @@
 import {verifyAccessToken,tokenFingerprint,tenantContext} from './auth.js';
 import {createRateLimiter} from './ratelimit.js';
 import {globalBudgetLedger} from './budget.js';
+import {isSessionRevoked,getFallbackDemoSecret} from './session.js';
 
 export const inferenceMinuteBucket=createRateLimiter({capacity:10,refillIntervalMs:6000});
 export const inferenceDayBucket=createRateLimiter({capacity:200,refillIntervalMs:432000});
@@ -21,12 +22,16 @@ export function httpError(status,body){
 export function tenantBudgetKey(organizationId,workspaceId){
   return String(organizationId)+'//'+String(workspaceId);
 }
-export function checkInferenceAccess({presentedToken,mode='spark',env=process.env,buckets={minute:inferenceMinuteBucket,day:inferenceDayBucket},ledger=globalBudgetLedger,now=Date.now()}={}){
-  if(!env.MODEL_API_KEY)throw httpError(503,{error:'Meta Model API is not configured on this deployment'});
-  if(env.META_REASONING_API_ENABLED!=='true')throw httpError(403,{error:'Meta inference is disabled pending authenticated workspace access'});
+export function checkInferenceAccess({presentedToken,mode='spark',allowMock=false,env=process.env,buckets={minute:inferenceMinuteBucket,day:inferenceDayBucket},ledger=globalBudgetLedger,now=Date.now()}={}){
+  const isMock=allowMock&&(env.MOCK_IMAGE_GENERATION==='true'||(!env.MODEL_API_KEY&&env.CREATIVE_GENERATION_ENABLED==='true'));
+  if(!isMock&&!env.MODEL_API_KEY)throw httpError(503,{error:'Meta Model API is not configured on this deployment'});
+  if(!isMock&&env.META_REASONING_API_ENABLED!=='true')throw httpError(403,{error:'Meta inference is disabled pending authenticated workspace access'});
+  if(!presentedToken)throw httpError(401,{error:'Unauthorized'});
+  if(isSessionRevoked(presentedToken))throw httpError(401,{error:'Session has been revoked'});
   let access;
+  const secret=env.META_DEMO_TOKEN_SECRET||(String(presentedToken).startsWith('v2.org_demo.')?getFallbackDemoSecret():undefined);
   try{
-    access=verifyAccessToken(presentedToken,{staticToken:env.META_REASONING_ACCESS_TOKEN,hmacSecret:env.META_DEMO_TOKEN_SECRET,now});
+    access=verifyAccessToken(presentedToken,{staticToken:env.META_REASONING_ACCESS_TOKEN,hmacSecret:secret,now});
   }catch(e){
     if(String(e&&e.message)==='AUTH_NOT_CONFIGURED')throw httpError(503,{error:'Access control is not configured on this deployment'});
     throw httpError(401,{error:'Unauthorized'});

@@ -18,15 +18,16 @@ function fmtUsage(usage){
   return parts.length>0?parts.join(' · '):'Not reported';
 }
 
-export default function ActivityView({mission,onNavigate,metaStatus,token}){
+export default function ActivityView({mission,onNavigate,metaStatus,token,session}){
   const status=missionStatus(mission);
   const [telemetry,setTelemetry]=useState(null);
   useEffect(()=>{
-    if(!token){setTelemetry(null);return;}
-    fetch('/api/telemetry/usage?limit=20',{headers:{'x-meta-demo-access':token}}).then(r=>r.json()).then(j=>{
+    const headers={};
+    if(token)headers['x-meta-demo-access']=token;
+    fetch('/api/telemetry/usage?limit=20',{headers}).then(r=>r.json()).then(j=>{
       setTelemetry(Array.isArray(j&&j.records)?j.records:[]);
     }).catch(()=>setTelemetry([]));
-  },[token]);
+  },[token,session]);
   if(status.presence==='none'){
     return <div className="page">
       <div className="page-head"><h1>Activity</h1><p className="lede">Execution history, model usage and audit trail.</p></div>
@@ -52,7 +53,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token}){
     </Card>
     <div className="grid-2">
       <Card title="Model usage" sub="Verified calls on this tenant, newest first.">
-        {!token?<p className="muted">Set a demo token to load tenant usage records.</p>
+        {!session?.authenticated&&!token?<p className="muted">Start a demo session to load tenant usage records.</p>
         :telemetry===null?<p className="muted">Loading usage records…</p>
         :telemetry.length===0?<p className="muted">No model calls recorded for this tenant yet.</p>
         :<ul className="timeline">{telemetry.map(r=><li key={r.id}><span className="t-time">{fmtTime(r.timestamp)}</span><span><strong>{r.ok?'Succeeded':'Failed'} · </strong><span className="mono">{r.model}</span>{' · '+r.operation.replace(/-/g,' ')}{r.requestId?' · request '+r.requestId:''}{' · '+fmtLatency(r.latencyMs)}{' · tokens: '+fmtUsage(r.usage)}{r.budget?' · budget '+r.budget.outcome+' ('+(r.budget.remainingUnits??'—')+' left)':''}{r.errorCode?' · '+r.errorCode:''}</span></li>)}</ul>}

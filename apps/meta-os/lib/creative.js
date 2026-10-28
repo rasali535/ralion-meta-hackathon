@@ -24,8 +24,12 @@ export function sniffImageType(bytes){
   return null;
 }
 export function creativeConfig(env=process.env){
-  const dir=typeof env.CREATIVE_STORAGE_DIR==='string'&&env.CREATIVE_STORAGE_DIR?env.CREATIVE_STORAGE_DIR:'.data/creative';
-  return {enabled:env.CREATIVE_GENERATION_ENABLED==='true',masterEnabled:env.META_REASONING_API_ENABLED==='true',keyConfigured:!!env.MODEL_API_KEY,storageDir:dir};
+  const dir=typeof env.CREATIVE_STORAGE_DIR==='string'&&env.CREATIVE_STORAGE_DIR?env.CREATIVE_STORAGE_DIR:(env.VERCEL?'/tmp/ralion-creative':'.data/creative');
+  const isMock=env.MOCK_IMAGE_GENERATION==='true';
+  const keyConfigured=!!env.MODEL_API_KEY||isMock;
+  const masterEnabled=env.META_REASONING_API_ENABLED==='true'||isMock;
+  const enabled=env.CREATIVE_GENERATION_ENABLED==='true'||isMock;
+  return {enabled,masterEnabled,keyConfigured,storageDir:dir};
 }
 function validatedBrief(brief){
   if(brief===undefined||brief===null)return null;

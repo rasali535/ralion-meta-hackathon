@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Command,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,Activity,Settings,Menu,Sun,Moon,ChevronLeft,ShieldCheck} from 'lucide-react';
+import {Command,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,Activity,Settings,Menu,Sun,Moon,ChevronLeft,ShieldCheck,RotateCcw} from 'lucide-react';
 import {WORKSPACES,parseViewParam} from '../../lib/navigation';
 import {starterBusiness} from '../../lib/modules';
 import CommandView from '../views/command';
@@ -31,6 +31,44 @@ export default function Shell({initialView}){
   const [live,setLive]=useState(false);
   const [mariMode,setMariMode]=useState('spark');
   const [token,setToken]=useState('');
+  const [session,setSession]=useState(null);
+
+  async function checkSession(){
+    try{
+      const r=await fetch('/api/demo/session');
+      const j=await r.json();
+      if(j&&j.authenticated){
+        setSession(j);
+        if(j.workspaceId)setWsNameState(j.workspaceId);
+        return j;
+      }
+      return null;
+    }catch{return null;}
+  }
+
+  async function startDemoSession(name){
+    try{
+      const r=await fetch('/api/demo/session',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({workspaceName:name||wsName})
+      });
+      const j=await r.json();
+      if(j&&j.authenticated){
+        setSession(j);
+        if(j.workspaceId)setWsNameState(j.workspaceId);
+        return j;
+      }
+    }catch{}
+    return null;
+  }
+
+  async function revokeDemoSession(){
+    try{
+      await fetch('/api/demo/session',{method:'DELETE'});
+      setSession(null);
+    }catch{}
+  }
 
   useEffect(()=>{
     try{
@@ -43,6 +81,14 @@ export default function Shell({initialView}){
   useEffect(()=>{document.documentElement.dataset.theme=theme;},[theme]);
   useEffect(()=>{
     fetch('/api/meta/status').then(r=>r.json()).then(setMetaStatus).catch(()=>setMetaStatus(null));
+  },[]);
+  useEffect(()=>{
+    // Check or auto-initialize demo session on initial mount
+    checkSession().then(s=>{
+      if(!s){
+        startDemoSession();
+      }
+    });
   },[]);
   useEffect(()=>{
     try{
@@ -110,17 +156,20 @@ export default function Shell({initialView}){
         <div className="crumbs"><span className="dim">Workspace</span><span className="dim">/</span><strong>{label}</strong></div>
         <div className="top-actions">
           <span className="env-badge">DEMO ENVIRONMENT</span>
+          {session?.authenticated&&<span className="session-badge" title={'Tenant: '+session.organizationId+'/'+session.workspaceId}>DEMO SESSION</span>}
           <button type="button" className="theme-btn" onClick={()=>setTheme(theme==='dark'?'light':'dark')} aria-label="Toggle theme">{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}</button>
           <button type="button" className="ws-chip" onClick={()=>setMenuOpen(o=>!o)} aria-haspopup="menu" aria-expanded={menuOpen}><span className="avatar">{initial}</span><span className="ws-name">{wsName}</span></button>
         </div>
         {menuOpen&&<div className="user-menu" role="menu">
-          <div className="um-head"><strong>{wsName}</strong><small>Demo owner · Isolated environment</small></div>
+          <div className="um-head"><strong>{wsName}</strong><small>{session?.authenticated?'Active session · '+session.organizationId:'Demo owner · Isolated environment'}</small></div>
+          <button type="button" onClick={()=>{setMenuOpen(false);startDemoSession();}}><BrainCircuit size={15}/> New demo workspace</button>
+          <button type="button" onClick={()=>{setMenuOpen(false);revokeDemoSession();}}><RotateCcw size={15}/> Reset demo session</button>
           <button type="button" onClick={()=>navigate('settings')}><Settings size={15}/> Workspace settings</button>
           <button type="button" onClick={()=>navigate('activity')}><ShieldCheck size={15}/> Audit trail</button>
         </div>}
       </header>
       <main className="content">
-        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} assets={assets} setAssets={setAssets} onGenerated={handleGenerated} onApproved={handleApproved} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
+        <View mission={mission} onNavigate={navigate} business={business} update={update} onSubmit={runMission} loading={loading} error={error} live={live} setLive={setLive} mariMode={mariMode} setMariMode={setMariMode} token={token} setToken={setToken} session={session} startDemoSession={startDemoSession} revokeDemoSession={revokeDemoSession} assets={assets} setAssets={setAssets} onGenerated={handleGenerated} onApproved={handleApproved} metaStatus={metaStatus} theme={theme} setTheme={setTheme} wsName={wsName} setWsName={setWsName}/>
       </main>
     </div>
   </div>;

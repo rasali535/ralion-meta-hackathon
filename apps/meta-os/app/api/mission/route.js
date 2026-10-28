@@ -6,6 +6,7 @@ import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '.
 import {recordModelUsage} from '../../../lib/telemetry';
 import {MODEL_IDS} from '../../../lib/meta/provider';
 import {verifyAccessToken,tenantContext} from '../../../lib/auth';
+import {extractTokenFromRequest,getFallbackDemoSecret} from '../../../lib/session';
 // Public demo route: website ingestion is SSRF/pinned-DNS/size/time-capped
 // with a kill switch. Live MARI needs explicit flags plus a presented demo
 // token; every live failure falls back to the deterministic demo.
@@ -22,7 +23,7 @@ export async function POST(request){
       catch(e){ingestError=e instanceof Error?e.message:'WEBSITE_FETCH_FAILED';}
     }
     let mission={...planMission(input,{evidence,ingestError}),mode:'DETERMINISTIC_DEMO',mariReasoning:null,liveError:null};
-    const presented=request.headers.get('x-meta-demo-access');
+    const presented=extractTokenFromRequest(request);
     if(input&&input.live===true){
       const cfg=missionLiveConfig();
       if(!cfg.liveRequested||!cfg.masterEnabled||!cfg.keyConfigured){
@@ -62,8 +63,9 @@ export async function POST(request){
     if(input&&input.approval!==undefined&&input.approval!==null){
       if(!presented)return NextResponse.json({error:'Approval requires authentication'},{status:401});
       let approver;
+      const secret=process.env.META_DEMO_TOKEN_SECRET||(String(presented).startsWith('v2.org_demo.')?getFallbackDemoSecret():undefined);
       try{
-        approver=tenantContext(verifyAccessToken(presented,{staticToken:process.env.META_REASONING_ACCESS_TOKEN,hmacSecret:process.env.META_DEMO_TOKEN_SECRET}));
+        approver=tenantContext(verifyAccessToken(presented,{staticToken:process.env.META_REASONING_ACCESS_TOKEN,hmacSecret:secret}));
       }catch{return NextResponse.json({error:'Unauthorized'},{status:401});}
       try{
         mission=attachApproval(mission,{record:input.approval,expectedOrganizationId:approver.organizationId,expectedWorkspaceId:approver.workspaceId,hmacSecret:process.env.APPROVAL_HMAC_SECRET});
