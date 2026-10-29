@@ -37,7 +37,7 @@ const revokedSessions=globalThis.__ralionRevokedSessions||(globalThis.__ralionRe
 
 export function getFallbackDemoSecret(){
   if(!globalThis.__ralionDemoSecret){
-    globalThis.__ralionDemoSecret='ralion_demo_secret_'+createHash('sha256').update(String(process.pid)+':'+String(Date.now())).digest('hex');
+    globalThis.__ralionDemoSecret=process.env.META_DEMO_TOKEN_SECRET||'ralion_demo_secret_v2_stable_fallback_4829';
   }
   return globalThis.__ralionDemoSecret;
 }
