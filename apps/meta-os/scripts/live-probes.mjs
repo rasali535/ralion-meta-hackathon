@@ -16,6 +16,17 @@ import { performance } from 'node:perf_hooks';
 import { reasonWithMeta, generateWithMuseImage, MODEL_IDS, META_API_BASE } from '../lib/meta/provider.js';
 
 // Minimal test payloads grounded in unverified test facts
+export const SPARK_PROBE_INPUT = {
+  business: {
+    name: 'Northstar Coffee Roasters',
+    industry: 'Specialty Coffee & Retail',
+    objective: 'Increase weekday morning commuter pickup orders by 20%',
+    audience: 'Local morning commuters and office professionals',
+    facts: 'Specialty roaster with high-street locations. Strong morning trade; seeking targeted weekday campaign without steep discounts.'
+  },
+  task: 'growth'
+};
+
 export const WONDER_PROBE_INPUT = {
   business: {
     name: 'AromaCraft Micro-Roastery',
@@ -41,6 +52,45 @@ export function sanitizeError(err) {
   message = message.replace(/Bearer\s+[A-Za-z0-9_\-\.]+/gi, 'Bearer [REDACTED]');
   message = message.replace(/(key=)[A-Za-z0-9_\-\.]+/gi, '$1[REDACTED]');
   return message;
+}
+
+/**
+ * Executes the Muse Spark 1.3 reasoning probe.
+ */
+export async function probeMuseSpark({ key = process.env.MODEL_API_KEY, fetchImpl = fetch } = {}) {
+  const start = performance.now();
+  try {
+    const result = await reasonWithMeta({
+      business: SPARK_PROBE_INPUT.business,
+      task: SPARK_PROBE_INPUT.task,
+      mode: 'spark',
+      key,
+      fetchImpl
+    });
+    const latencyMs = Math.round(performance.now() - start);
+
+    return {
+      success: true,
+      model: result.model,
+      expectedModel: MODEL_IDS.spark,
+      endpoint: `${META_API_BASE}/responses`,
+      requestId: result.requestId || 'N/A',
+      latencyMs,
+      output: result.output,
+      outputPreview: result.output ? result.output.slice(0, 280) + (result.output.length > 280 ? '...' : '') : null,
+      claimsSource: result.claimsSource,
+      rawOutputLength: result.output ? result.output.length : 0
+    };
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      success: false,
+      model: MODEL_IDS.spark,
+      endpoint: `${META_API_BASE}/responses`,
+      latencyMs,
+      error: sanitizeError(err)
+    };
+  }
 }
 
 /**
@@ -165,6 +215,16 @@ export async function probeMuseImage({ key = process.env.MODEL_API_KEY, fetchImp
  * Dry-run probe asserting provider contracts without billable network execution.
  */
 export async function dryRunContractProbes() {
+  const syntheticFetchSpark = async (url, init) => {
+    return {
+      ok: true,
+      json: async () => ({
+        id: 'mock_spark_' + Math.random().toString(16).slice(2, 10),
+        output: [{ content: [{ text: 'Insight: Morning coffee commuters value rapid collection over deep discounting.\nHypothesis: A pre-ordered morning pickup bundle increases order volume by 20%.\nSuggested action: Introduce mobile skip-the-line pickup with complimentary double-shot upgrade.\nSuccess metric: 20% lift in repeat weekday customer transactions within 14 days.' }] }]
+      })
+    };
+  };
+
   const syntheticId = 'mock_resp_' + Math.random().toString(16).slice(2, 10);
   const syntheticFetchWonder = async (url, init) => {
     return {
@@ -193,11 +253,13 @@ export async function dryRunContractProbes() {
     };
   };
 
+  const sparkResult = await probeMuseSpark({ key: 'dry-run-key', fetchImpl: syntheticFetchSpark });
   const wonderResult = await probeMuseWonder({ key: 'dry-run-key', fetchImpl: syntheticFetchWonder });
   const imageResult = await probeMuseImage({ key: 'dry-run-key', fetchImpl: syntheticFetchImage });
 
   return {
     mode: 'DRY_RUN_CONTRACT_VALIDATION',
+    spark: sparkResult,
     wonder: wonderResult,
     image: imageResult
   };
@@ -233,7 +295,9 @@ if (process.argv[1] && (process.argv[1].endsWith('live-probes.mjs') || process.a
     console.log('[NOTICE] Executing contract dry-run to verify provider interfaces safely...\n');
 
     dryRunContractProbes().then(report => {
-      console.log('WONDER CONTRACT DRY-RUN:');
+      console.log('SPARK CONTRACT DRY-RUN:');
+      console.log(JSON.stringify(report.spark, null, 2));
+      console.log('\nWONDER CONTRACT DRY-RUN:');
       console.log(JSON.stringify(report.wonder, null, 2));
       console.log('\nMUSE IMAGE CONTRACT DRY-RUN:');
       console.log(JSON.stringify(report.image, null, 2));
@@ -254,7 +318,12 @@ if (process.argv[1] && (process.argv[1].endsWith('live-probes.mjs') || process.a
     console.log('\n[ALERT] Explicit authorization verified. Executing live probes against Meta Model API...\n');
 
     (async () => {
-      console.log('>>> Probing Muse Wonder 1.0 (muse-wonder-1.0)...');
+      console.log('>>> Probing Muse Spark 1.3 (muse-spark-1.3)...');
+      const sparkReport = await probeMuseSpark();
+      console.log('Spark Result:');
+      console.log(JSON.stringify(sparkReport, null, 2));
+
+      console.log('\n>>> Probing Muse Wonder 1.0 (muse-wonder-1.0)...');
       const wonderReport = await probeMuseWonder();
       console.log('Wonder Result:');
       console.log(JSON.stringify(wonderReport, null, 2));
@@ -266,6 +335,7 @@ if (process.argv[1] && (process.argv[1].endsWith('live-probes.mjs') || process.a
 
       console.log('\n' + '='.repeat(70));
       console.log('PROBE RUN SUMMARY:');
+      console.log(`Spark Success:  ${sparkReport.success ? 'PASS' : 'FAIL'}`);
       console.log(`Wonder Success: ${wonderReport.success ? 'PASS' : 'FAIL'}`);
       console.log(`Image Success:  ${imageReport.success ? 'PASS' : 'FAIL'}`);
       console.log('='.repeat(70));

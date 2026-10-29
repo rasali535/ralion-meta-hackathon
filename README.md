@@ -2,7 +2,7 @@
 
 Standalone, public submission worktree. This is **not** a mirror of production Ralion OS.
 
-[![Tests](https://img.shields.io/badge/tests-177%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-183%20passing-brightgreen.svg)](#tests)
 [![Meta models](https://img.shields.io/badge/Meta%20models-owner--reported%20live%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
 [![Muse Code](https://img.shields.io/badge/Muse%20Code-session%20log%20evidence-lightgrey.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
 
@@ -10,7 +10,13 @@ Standalone, public submission worktree. This is **not** a mirror of production R
 Business context → Meta-powered reasoning → evidence-backed growth action proposal → human approval → isolated action execution → measured outcome.
 
 ## Current status (honest summary)
-- **Working and tested offline (177 tests):**
+- **Working and tested offline (183 tests):**
+  - **Business Memory & Review Lessons:**
+    - Append-only decision memory (`apps/meta-os/lib/memory.js`) isolated per tenant workspace (`.data/memory/<org>/<ws>/`), capturing mission ID, plan hash, decision, actor, and before/after draft edit deltas.
+    - Honest lesson derivation strictly from review outcomes: untouched approval patterns, custom copy refinements, and declined concepts.
+    - Strict invariant: every business lesson must cite its source decisions (mission IDs + timestamps); a lesson with no cited decisions cannot exist.
+    - Activity workspace review memory panel with cited sources, recency, and explicit disclaimer that lessons reflect workspace human reviews, not ad performance or market analytics.
+    - Memory-aware draft shaping (`apps/meta-os/lib/social-copy.js`) with explicit label `"Shaped by N approved draft(s) in this workspace"`.
   - **Flagship MARI Command Centre:** Full hero goal submission (`apps/meta-os/app/views/command.jsx`), 4 state-driven KPI cards, 7-state workflow tracker, recent activity timeline, 6 gated quick actions with prerequisite banners, and seamless handoff into MARI mission planning.
   - **Phase 1-2 Foundation:** DNS-pinned website transport (re-pinned every redirect hop to prevent TOCTOU DNS rebinding), mission planning with grounded evidence labels, v2 tenant-scoped tokens (`v2.<org>.<workspace>.<exp>.<sig>`), shared inference access guard with per-token rate limits and per-workspace daily inference budgets, signed human-approval records strictly locked to `LOCAL_DRAFT_ONLY` with `execution: NOT_CONNECTED`, responsive 8-workspace OS shell (Command Center, Business, MARI, Growth, Creative, Social, Activity, Settings) with dark/light theme switching, and Meta provider adapters (Spark, Wonder, Muse Image).
   - **Phase 3 Creative Studio & Social Gateway:** Guided brief selection (Growth, MARI, or Custom), editable prompt composer, explicit confirmation checkbox guard, server-side tenant-isolated binary asset storage (`.data/creative/`), magic byte type verification (`image/png`, `image/jpeg`, `image/webp`, `image/gif`), expiring HMAC-signed capability preview URLs (`GET /api/creative/asset?id=...&org=...&ws=...&exp=...&sig=...`), multi-channel draft generator (Facebook, Instagram) with grounded evidence chips and mandatory `NOT PUBLISHED · PUBLISHING NOT APPROVED` guard chips, thumbnail preview row, cryptographic human approval minting (`POST /api/mission/approve`), and exact plan hash binding that invalidates approvals upon draft modification.
@@ -26,14 +32,16 @@ Business context → Meta-powered reasoning → evidence-backed growth action pr
     - Active session lifecycle controls in Settings and Topbar with instant server-side revocation.
     - Deterministic mode fully usable without manually entering or pasting any token.
     - Vercel serverless read-only filesystem constraints documented in [docs/VERCEL_STORAGE_LIMITATIONS.md](docs/VERCEL_STORAGE_LIMITATIONS.md) with `/tmp` ephemeral fallback.
-- **Live Meta API receipts (reported by the project owner, not independently reproduced by the repo's automated tests):** Spark `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image 9,233 ms, image retrieved with HTTP 200 (`image/webp`, 298,186 bytes), request ID unavailable.
+- **Live Meta API receipts & Probe Harness:**
+  - Owner-reported receipts: Spark `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image reported without server Request ID (downgraded to unverified).
+  - Minimal live probe harness (`apps/meta-os/scripts/live-probes.mjs`) expanded to cover Spark (`probeMuseSpark`), Wonder (`probeMuseWonder`), and Image (`probeMuseImage`). Automated contract dry-runs pass 100% offline without egress; `--authorize-billable` safely aborts if `MODEL_API_KEY` is not present in the shell.
 - **Live MARI integration:** Optional live MARI mission diagnosis (Spark/Wonder) behind explicit feature flags (`MARI_LIVE_REASONING_ENABLED=true` and master switch `META_REASONING_API_ENABLED=true`) plus demo token authentication, with automatic deterministic fallback if credentials or flags are absent or if inference fails.
 - **Safety boundaries enforced:** Public demo mission flow defaults to deterministic demo without calling billable Meta models; the direct inference route is disabled by default; human approval records can never trigger live ad execution; approvals, budgets and rate limits are in-memory per process; SAM 3.1 is not implemented; no Facebook/Instagram publishing or ad spend is connected.
 
 ## How Muse Code and Anti were used
 Development used two AI tools, and the evidence for each differs:
 - **Muse Code CLI** (active model `muse-spark-1.3-contributor` in `ralion-meta-os-dev`): created the website-ingestion, DNS-pinned transport, v2 tenant auth, shared inference guard, live MARI diagnosis wiring with fallback, 8-workspace OS redesign, Phase 3 creative generation, isolated asset storage, social channel copy generation, human approval gateway, the four post-extraction improvements (canonical social handoffs, creative format selection, tenant usage telemetry, learning-loop inspector), and the flagship Command Centre UI overhaul with its test suites. See [docs/MUSE_SLICE2_EVIDENCE.md](docs/MUSE_SLICE2_EVIDENCE.md), [docs/MUSE_SLICE3_EVIDENCE.md](docs/MUSE_SLICE3_EVIDENCE.md), [docs/MUSE_POST_EXTRACTION_EVIDENCE.md](docs/MUSE_POST_EXTRACTION_EVIDENCE.md), and [docs/MUSE_PREMIUM_UI_EVIDENCE.md](docs/MUSE_PREMIUM_UI_EVIDENCE.md).
-- **Anti** (IDE agent): created the budget ledger, approval module, live-probe harness, consolidated and reconciled the demo session authentication architecture (`/api/session/demo`), integrated and independently verified Muse's Slice 1, Slice 2, Slice 3, Post-Extraction, and Premium UI contributions, built Next.js production bundles, executed full Chrome browser acceptance tests via CDP across all 8 workspaces, and maintained authoritative documentation and git commits.
+- **Anti** (IDE agent): created the budget ledger, approval module, live-probe harness, consolidated and reconciled the demo session authentication architecture (`/api/session/demo`), implemented the business memory and review lessons system (`apps/meta-os/lib/memory.js`), added the Spark probe (`probeMuseSpark`), integrated and independently verified Muse's Slice 1, Slice 2, Slice 3, Post-Extraction, and Premium UI contributions, built Next.js production bundles, executed full Chrome browser acceptance tests via CDP across all 8 workspaces, and maintained authoritative documentation and git commits.
 
 Details, timestamps and limits: [docs/MUSE_CODE_DEVELOPMENT.md](docs/MUSE_CODE_DEVELOPMENT.md), [docs/MUSE_SLICE2_EVIDENCE.md](docs/MUSE_SLICE2_EVIDENCE.md), [docs/MUSE_SLICE3_EVIDENCE.md](docs/MUSE_SLICE3_EVIDENCE.md), [docs/MUSE_POST_EXTRACTION_EVIDENCE.md](docs/MUSE_POST_EXTRACTION_EVIDENCE.md), and [docs/MUSE_PREMIUM_UI_EVIDENCE.md](docs/MUSE_PREMIUM_UI_EVIDENCE.md). Meta API receipts and security controls: [docs/AI_DEVELOPMENT_EVIDENCE.md](docs/AI_DEVELOPMENT_EVIDENCE.md).
 
@@ -54,7 +62,7 @@ Requires Node.js 20 or newer. No billable API calls run in tests.
 
 ```bash
 npm test                         # 9 root tests
-npm --prefix apps/meta-os test   # 168 Meta OS tests (177 total)
+npm --prefix apps/meta-os test   # 174 Meta OS tests (183 total)
 ```
 
 ## Run the apps locally

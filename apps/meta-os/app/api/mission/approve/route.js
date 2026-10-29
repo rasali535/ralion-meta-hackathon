@@ -3,6 +3,7 @@ import {mintMissionApproval} from '../../../../lib/mission';
 import {attachSocialHandoffs} from '../../../../lib/social-handoff';
 import {creativeConfig} from '../../../../lib/creative';
 import {resolveRequestAuth} from '../../../../lib/session';
+import {recordDecisionMemory} from '../../../../lib/memory';
 // Mints a cryptographic approval for the exact submitted mission bytes,
 // after verifying declared creative assets against tenant storage.
 // Scope is forced to local drafts; approvals never execute anything.
@@ -31,6 +32,22 @@ export async function POST(request){
     // mintMissionApproval, so stamping the verified tenant here is sound.
     const verifiedAssets=submitted.map(a=>({...a,organizationId:tenant.organizationId,workspaceId:tenant.workspaceId}));
     const mission=attachSocialHandoffs(body.mission,{tenant,assets:verifiedAssets,approval:record});
+
+    // Record decision memory (append-only, isolated per tenant workspace)
+    try{
+      recordDecisionMemory({
+        tenant,
+        mission:body.mission,
+        decision:body.decision,
+        actor:{id:body.actorId,role:body.role},
+        planHash:record.planHash,
+        notes:body.notes,
+        approvedAt:record.approvedAt
+      });
+    }catch(_){
+      // Storage failure in ephemeral environments does not invalidate approval
+    }
+
     return NextResponse.json({record,mission},{headers:{'cache-control':'no-store'}});
   }catch(e){
     const code=String(e&&e.message||'');

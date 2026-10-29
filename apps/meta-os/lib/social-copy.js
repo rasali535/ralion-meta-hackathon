@@ -27,7 +27,7 @@ export function hashtagsFor(industry,name,max=SOCIAL_COPY_LIMITS.maxHashtags){
   }
   return tags;
 }
-export function buildChannelDrafts(mission){
+export function buildChannelDrafts(mission, options = {}){
   if(!mission||typeof mission!=='object')throw new Error('SOCIAL_MISSION_REQUIRED');
   const business=mission.business&&typeof mission.business==='object'?mission.business:{};
   const name=clean(business.name,100);
@@ -35,7 +35,12 @@ export function buildChannelDrafts(mission){
   const audience=clean(business.audience,200);
   if(!name||!objective)throw new Error('SOCIAL_BUSINESS_REQUIRED');
   const opportunity=clean(mission.growth&&mission.growth.opportunity,300);
-  const grounding={source:'MISSION_DRAFT_DERIVED',facts:[...FACT_TAGS]};
+  const lessons = options?.lessons || options?.memory || null;
+  const approvedCount = Number(lessons?.approvedCount || 0);
+  const memoryLabel = approvedCount > 0
+    ? 'Shaped by ' + approvedCount + ' approved draft(s) in this workspace'
+    : 'No previous decision memory in this workspace — using baseline starter template';
+  const grounding={source:'MISSION_DRAFT_DERIVED',facts:[...FACT_TAGS],memory:memoryLabel};
   const facebookCaption=clean(
     'Discover '+name+' — '+objective+'. '+(opportunity?opportunity+' ':'')+'Draft concept for review; nothing is published.',
     SOCIAL_COPY_LIMITS.facebookCaption);

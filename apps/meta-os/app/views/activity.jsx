@@ -22,15 +22,20 @@ function fmtUsage(usage){
 export default function ActivityView({mission,onNavigate,metaStatus,token,session}){
   const status=missionStatus(mission);
   const [telemetry,setTelemetry]=useState(null);
+  const [memoryData,setMemoryData]=useState(null);
   const hasAuth=Boolean(token||session?.authenticated);
 
   useEffect(()=>{
-    if(!hasAuth){setTelemetry(null);return;}
+    if(!hasAuth){setTelemetry(null);setMemoryData(null);return;}
     const headers={};
     if(token)headers['x-meta-demo-access']=token;
     fetch('/api/telemetry/usage?limit=20',{credentials:'include',headers}).then(r=>r.json()).then(j=>{
       setTelemetry(Array.isArray(j&&j.records)?j.records:[]);
     }).catch(()=>setTelemetry([]));
+    fetch('/api/memory?limit=20',{credentials:'include',headers}).then(r=>r.json()).then(j=>{
+      if(j&&j.ok)setMemoryData(j);
+      else setMemoryData(null);
+    }).catch(()=>setMemoryData(null));
   },[hasAuth,token]);
 
   if(status.presence==='none'){
@@ -107,6 +112,44 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
           {k:'7 · Performance',v:'NOT AVAILABLE — no impressions, conversions, or revenue are measured'},
         ]}/>
         <p className="muted" style={{marginTop:10}}>{loop.learning}</p>
+      </>}
+    </Card>
+    <Card title="Business memory & review lessons" sub="MARI learns from this workspace's review outcomes. Real decisions only — no fabricated performance.">
+      {!hasAuth?<p className="muted">Start a demo session to load workspace memory.</p>
+      :memoryData===null?<p className="muted">Loading workspace memory…</p>
+      :memoryData.totalDecisions===0?<p className="muted">No review decisions recorded in this workspace yet. When you approve or reject drafts in the Social workspace, MARI records the decision and learns your preferences.</p>
+      :<>
+        <div className="row" style={{marginBottom:10}}>
+          <Badge tone="ok">{memoryData.approvedCount} approved</Badge>
+          {memoryData.editedCount>0&&<Badge tone="info">{memoryData.editedCount} edited before approval</Badge>}
+          {memoryData.rejectedCount>0&&<Badge tone="warn">{memoryData.rejectedCount} declined</Badge>}
+          <Badge tone="muted">Workspace isolated</Badge>
+        </div>
+        <p className="muted" style={{marginBottom:12}}><strong>Draft shaping:</strong> {memoryData.draftingLabel}</p>
+        {memoryData.lessons&&memoryData.lessons.length>0?<div className="memory-lessons">
+          <ul className="timeline">
+            {memoryData.lessons.map(les=>(
+              <li key={les.id}>
+                <span className="t-time">
+                  <Badge tone={les.category==='APPROVED_PATTERN'?'ok':les.category==='STYLE_REVISION'?'info':'warn'}>
+                    {les.category.replace(/_/g,' ')}
+                  </Badge>
+                </span>
+                <span>
+                  <strong>{les.title}. </strong>
+                  {les.summary}
+                  {les.delta&&les.delta.after&&<span className="mono" style={{display:'block',fontSize:12,marginTop:2,color:'var(--text-dim)'}}>Refined: "{les.delta.after.slice(0,80)}…"</span>}
+                  <span className="muted" style={{display:'block',fontSize:11,marginTop:4}}>
+                    Cited source(s): {(les.sourceDecisions||[]).map(s=>'Mission '+String(s.missionId).slice(0,8)+' ('+fmtTime(s.timestamp)+') · '+s.decision).join('; ')}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>:<p className="muted">No active lessons derived yet.</p>}
+        <p className="muted" style={{marginTop:12,fontSize:12,borderTop:'1px solid var(--border)',paddingTop:8}}>
+          {memoryData.disclaimer}
+        </p>
       </>}
     </Card>
     <Card title="Model readiness" sub="Live status from this deployment.">
