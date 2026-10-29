@@ -26,7 +26,8 @@ function sanitizeEvidence(e){
   const url=v=>String(v||'').slice(0,1000);
   const citations=Array.isArray(e.citations)?e.citations.filter(c=>typeof c==='string').map(c=>c.slice(0,1000)).slice(0,8):[];
   const hash=String(e.contentHash||'');
-  return {sourceUrl:url(e.sourceUrl),finalUrl:url(e.finalUrl),fetchedAt:String(e.fetchedAt||'').slice(0,40),title:String(e.title||'').slice(0,200),description:String(e.description||'').slice(0,500),excerpt,textChars:clampInt(e.textChars,0,10000000,excerpt.length),wordCount:clampInt(e.wordCount,0,1000000,0),contentHash:/^sha256:[0-9a-f]{64}$/.test(hash)?hash:'UNVERIFIED',citations,redirectHops:clampInt(e.redirectHops,0,10,0)};
+  const validHash=/^sha256:[0-9a-f]{64}$/.test(hash)?hash:(/^sha256-text:[0-9a-f]{64}$/.test(hash)?hash:'UNVERIFIED');
+  return {sourceUrl:url(e.sourceUrl),finalUrl:url(e.finalUrl),fetchedAt:String(e.fetchedAt||'').slice(0,40),title:String(e.title||'').slice(0,200),description:String(e.description||'').slice(0,500),excerpt,textChars:clampInt(e.textChars,0,10000000,excerpt.length),wordCount:clampInt(e.wordCount,0,1000000,0),contentHash:validHash,citations,redirectHops:clampInt(e.redirectHops,0,10,0),renderedVia:e.renderedVia==='reader'?'reader':undefined};
 }
 function sanitizeFailure(code){
   const c=String(code||'');
@@ -40,7 +41,7 @@ export function planMission(input,options={}){
   const failure=sanitizeFailure(opts.ingestError);
   const missionId=crypto.randomUUID();
   const base={name:f.name,industry:f.industry,objective:f.objective,audience:f.audience,facts:f.facts,website:f.website};
-  const websiteStatus=site?(site.redirectHops>0?'RETRIEVED_WITH_REDIRECT':'RETRIEVED'):(failure?'RETRIEVAL_FAILED_'+failure:(f.website?'REFERENCE_ONLY_NOT_CRAWLED':'NOT_PROVIDED'));
+  const websiteStatus=site?(site.renderedVia==='reader'?'RETRIEVED_RENDERED':(site.redirectHops>0?'RETRIEVED_WITH_REDIRECT':'RETRIEVED')):(failure?'RETRIEVAL_FAILED_'+failure:(f.website?'REFERENCE_ONLY_NOT_CRAWLED':'NOT_PROVIDED'));
   // category is a fixed template label for this single deterministic draft
   // type, matching the production growth taxonomy. It is structural, not a
   // measured confidence or classification result.

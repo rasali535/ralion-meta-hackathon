@@ -44,8 +44,9 @@ export default function MariView({mission,onNavigate,onFollowup}){
         {site?<Rows items={[
           {k:'Source',v:<span className="mono">{site.finalUrl}</span>},
           {k:'Retrieval',v:String(m.evidence.websiteStatus).replace(/_/g,' ')},
+          ...(site.renderedVia==='reader'?[{k:'Render method',v:'Rendered text via reader service'}]:[]),
           {k:'Size',v:String(site.wordCount)+' words'},
-          {k:'Content hash',v:<span className="mono">{String(site.contentHash).slice(0,24)+'…'}</span>},
+          {k:site.renderedVia==='reader'?'Text hash (rendered)':'Content hash',v:<span className="mono">{String(site.contentHash).slice(0,24)+'…'}</span>},
         ]}/>:<p className="muted">No page text was retrieved. Status: {String(m.evidence.websiteStatus).replace(/_/g,' ')}. MARI worked from your supplied profile only.</p>}
       </Card>
     </div>
