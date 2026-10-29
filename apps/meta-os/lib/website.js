@@ -101,7 +101,7 @@ async function fetchOnce(href,fetchImpl,timeoutMs,maxBytes){
     throw new Error('WEBSITE_FETCH_FAILED');
   }finally{clearTimeout(timer);}
 }
-export async function pinnedLookupFor(hostname,lookupImpl){
+export async function pinnedLookupFor(hostname,lookupImpl=(host,opts)=>dnsLookup(host,opts)){
   const host=stripBrackets(String(hostname||'')).toLowerCase().replace(/\.+$/,'');
   assertPublicHostname(host);
   let records;
@@ -117,7 +117,11 @@ export async function pinnedLookupFor(hostname,lookupImpl){
   const primary=pinned[0];
   const lookup=(name,opts,cb)=>{
     const callback=typeof opts==='function'?opts:cb;
-    process.nextTick(()=>callback(null,primary.address,primary.family));
+    if(opts&&typeof opts==='object'&&Boolean(opts.all)){
+      process.nextTick(()=>callback(null,pinned));
+    }else{
+      process.nextTick(()=>callback(null,primary.address,primary.family));
+    }
   };
   return {lookup,addresses:pinned.map(p=>p.address)};
 }
