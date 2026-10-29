@@ -19,7 +19,7 @@ function briefOptions(m){
 
 function generateErrorMessage(status,body){
   if(status===401)return 'A valid demo token or session is required. Start a demo session in the Business workspace.';
-  if(status===403)return 'Image generation is disabled or the request was unauthorized.';
+  if(status===403)return (body&&body.error)||'Image generation is disabled or the request was unauthorized.';
   if(status===429)return 'Rate limit or workspace budget reached. Retry shortly.';
   return (body&&body.error)||'Image generation failed.';
 }
