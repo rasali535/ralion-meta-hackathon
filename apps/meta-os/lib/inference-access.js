@@ -29,7 +29,8 @@ export function checkInferenceAccess({presentedToken,mode='spark',allowMock=fals
   if(!presentedToken)throw httpError(401,{error:'Unauthorized'});
   if(isSessionRevoked(presentedToken))throw httpError(401,{error:'Session has been revoked'});
   let access;
-  const secret=env.META_DEMO_TOKEN_SECRET||(String(presentedToken).startsWith('v2.org_demo.')?getFallbackDemoSecret():undefined);
+  const isDemo=String(presentedToken).startsWith('v2.demo.')||String(presentedToken).startsWith('v2.org_demo.');
+  const secret=env.META_DEMO_TOKEN_SECRET||(isDemo?getFallbackDemoSecret():undefined);
   try{
     access=verifyAccessToken(presentedToken,{staticToken:env.META_REASONING_ACCESS_TOKEN,hmacSecret:secret,now});
   }catch(e){
