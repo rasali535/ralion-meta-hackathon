@@ -6,7 +6,8 @@ import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '.
 import {recordModelUsage} from '../../../lib/telemetry';
 import {MODEL_IDS} from '../../../lib/meta/provider';
 import {verifyAccessToken,tenantContext} from '../../../lib/auth';
-import {extractTokenFromRequest,getFallbackDemoSecret} from '../../../lib/session';
+import {extractTokenFromRequest,getFallbackDemoSecret,resolveRequestAuth} from '../../../lib/session';
+import {listDecisionMemories,deriveBusinessLessons} from '../../../lib/memory';
 // Public demo route: website ingestion is SSRF/pinned-DNS/size/time-capped
 // with a kill switch. Live MARI needs explicit flags plus a presented demo
 // token; every live failure falls back to the deterministic demo.
@@ -22,8 +23,14 @@ export async function POST(request){
       try{evidence=await ingestWebsite(fields.website,{timeoutMs:8000});}
       catch(e){ingestError=e instanceof Error?e.message:'WEBSITE_FETCH_FAILED';}
     }
-    let mission={...planMission(input,{evidence,ingestError}),mode:'DETERMINISTIC_DEMO',mariReasoning:null,liveError:null};
     const presented=extractTokenFromRequest(request);
+    let memoryOpts={};
+    try{
+      const tenant=resolveRequestAuth(request);
+      const memories=listDecisionMemories(tenant,{limit:20});
+      memoryOpts.lessons=deriveBusinessLessons(memories);
+    }catch(_){}
+    let mission={...planMission(input,{evidence,ingestError,...memoryOpts}),mode:'DETERMINISTIC_DEMO',mariReasoning:null,liveError:null};
     if(input&&input.live===true){
       const cfg=missionLiveConfig();
       if(!cfg.liveRequested||!cfg.masterEnabled||!cfg.keyConfigured){

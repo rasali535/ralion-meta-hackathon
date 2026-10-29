@@ -526,8 +526,8 @@ async function runBrowserAcceptance() {
       throw new Error('Approval invalidation banner was not displayed after editing draft!');
     }
 
-    // 9. Activity Workspace & Learning Loop
-    console.log('\n[9/12] Testing Activity Workspace: Usage, Budget, and Learning Loop...');
+    // 9. Activity Workspace & Learning Loop & Business Memory
+    console.log('\n[9/12] Testing Activity Workspace: Usage, Budget, Learning Loop, and Business Memory...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('activity')).click();
     })()`);
@@ -537,13 +537,57 @@ async function runBrowserAcceptance() {
       return Array.from(document.querySelectorAll('.card')).map(c => c.querySelector('h3')?.innerText).filter(Boolean);
     })()`);
     console.log('Activity Workspace Cards:', activityCards);
+    if (!activityCards.some(t => t.includes('Business memory'))) {
+      throw new Error('Business memory card was not found in Activity workspace');
+    }
+
+    // Wait for memory data to load
+    await wait(800);
+    const memoryCardText = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Business memory'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Business Memory Card Status:', memoryCardText.slice(0, 150) + '...');
 
     // Verify learning loop 7 stages
     const loopRowsCount = await client.evaluate('document.querySelectorAll(".card .kv-row").length');
     console.log('Activity detail rows rendered count:', loopRowsCount);
 
-    // Capture Screenshot 8: Activity Workspace
+    // Capture Screenshot 8: Activity Workspace (1440px)
     await client.captureScreenshot('activity-1440.png');
+
+    // Test Mobile 390px Viewport on Activity Workspace
+    console.log('Testing Activity Workspace on Mobile 390px Viewport...');
+    await client.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 3,
+      mobile: true
+    });
+    await wait(300);
+
+    const activityMobileCheck = await client.evaluate(`(() => {
+      return {
+        innerW: window.innerWidth,
+        scrollW: document.documentElement.scrollWidth,
+        bodyScrollW: document.body.scrollWidth,
+        hasHorizontalOverflow: document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth
+      };
+    })()`);
+    console.log('Activity Mobile 390px Viewport Check:', activityMobileCheck);
+    if (activityMobileCheck.hasHorizontalOverflow) {
+      throw new Error('Horizontal overflow detected on mobile 390px in Activity workspace!');
+    }
+    await client.captureScreenshot('activity-memory-390.png');
+
+    // Restore desktop viewport
+    await client.send('Emulation.setDeviceMetricsOverride', {
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await wait(300);
 
     // 10. Settings Workspace & Session Lifecycle
     console.log('\n[10/12] Testing Settings Workspace & Session Lifecycle...');

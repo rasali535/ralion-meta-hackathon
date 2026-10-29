@@ -45,7 +45,7 @@ export function planMission(input,options={}){
   // type, matching the production growth taxonomy. It is structural, not a
   // measured confidence or classification result.
   const growth={category:'MARKETING_ACQUISITION',opportunity:'Test a focused campaign for '+f.audience,reason:'The supplied goal suggests testing customer acquisition; this is a hypothesis, not an observed business diagnosis.',objective:f.objective,measurement:'Track qualified enquiries or attributed visits after authorized execution',results:null};
-  const social=buildChannelDrafts({business:base,growth}).map((d,i)=>({channel:d.channel,copy:i===0?'Discover '+f.name+' — '+f.objective+'.':'Meet '+f.name+'. Explore what makes us different.',caption:d.caption,cta:d.cta,audience:d.audience,hashtags:d.hashtags,grounding:d.grounding,status:'DRAFT_ONLY'}));
+  const social=buildChannelDrafts({business:base,growth},opts).map((d,i)=>({channel:d.channel,copy:i===0?'Discover '+f.name+' — '+f.objective+'.':'Meet '+f.name+'. Explore what makes us different.',caption:d.caption,cta:d.cta,audience:d.audience,hashtags:d.hashtags,grounding:d.grounding,status:'DRAFT_ONLY'}));
   return {schemaVersion:MISSION_SCHEMA_VERSION,missionId,createdAt:new Date().toISOString(),status:'AWAITING_HUMAN_REVIEW',provider:'DETERMINISTIC_DEMO_NOT_META_AI',business:base,
   evidence:{websiteRetrieved:!!site,websiteStatus,userFacts:f.facts?'USER_SUPPLIED_UNVERIFIED':'NOT_PROVIDED',campaignMetrics:'NOT_AVAILABLE',site},
   growth,

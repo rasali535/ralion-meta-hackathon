@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dryRunContractProbes, sanitizeError, WONDER_PROBE_INPUT, MUSE_IMAGE_PROBE_INPUT } from '../scripts/live-probes.mjs';
+import { dryRunContractProbes, sanitizeError, SPARK_PROBE_INPUT, WONDER_PROBE_INPUT, MUSE_IMAGE_PROBE_INPUT } from '../scripts/live-probes.mjs';
 
 test('live-probe harness dry-run succeeds against provider contract', async () => {
   const report = await dryRunContractProbes();
   assert.equal(report.mode, 'DRY_RUN_CONTRACT_VALIDATION');
+
+  assert.equal(report.spark.success, true);
+  assert.equal(report.spark.model, 'muse-spark-1.3');
+  assert.ok(report.spark.outputPreview.includes('Hypothesis'));
+  assert.equal(report.spark.claimsSource, 'USER_SUPPLIED_UNVERIFIED');
+
   assert.equal(report.wonder.success, true);
   assert.equal(report.wonder.model, 'muse-wonder-1.0');
   assert.ok(report.wonder.outputPreview.includes('Hypothesis'));
@@ -27,6 +33,8 @@ test('sanitizeError scrubs Bearer credentials and secrets', () => {
 });
 
 test('probe inputs adhere to grounded fact boundaries', () => {
+  assert.ok(SPARK_PROBE_INPUT.business.name.length > 0);
+  assert.ok(SPARK_PROBE_INPUT.business.objective.length > 0);
   assert.ok(WONDER_PROBE_INPUT.business.name.length > 0);
   assert.ok(WONDER_PROBE_INPUT.business.objective.length > 0);
   assert.ok(MUSE_IMAGE_PROBE_INPUT.prompt.length > 0 && MUSE_IMAGE_PROBE_INPUT.prompt.length < 2500);

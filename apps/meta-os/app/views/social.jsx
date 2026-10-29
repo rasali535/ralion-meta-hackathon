@@ -43,7 +43,11 @@ function DraftPost({draft,businessName,previewUrl,onEdit,editing,onSaveEdit,onCa
     <div className="post-cta"><span>{draft.cta||'No call to action'}</span><button type="button" className="btn small ghost" onClick={onEdit}><Pencil size={13}/> Edit draft</button></div>
     <div className="post-foot">
       {draft.hashtags&&draft.hashtags.length>0?<p className="muted">{draft.hashtags.join(' ')}</p>:null}
-      <div className="chip-row"><span className="chip">{(draft.grounding&&draft.grounding.source||'MISSION_DRAFT_DERIVED').replace(/_/g,' ')}</span>{(draft.grounding&&draft.grounding.facts||[]).map(f=><span className="chip" key={f}>{f}</span>)}</div>
+      <div className="chip-row">
+        <span className="chip">{(draft.grounding&&draft.grounding.source||'MISSION_DRAFT_DERIVED').replace(/_/g,' ')}</span>
+        {draft.grounding&&draft.grounding.memory&&<span className="chip" title="Workspace review memory">{draft.grounding.memory}</span>}
+        {(draft.grounding&&draft.grounding.facts||[]).map(f=><span className="chip" key={f}>{f}</span>)}
+      </div>
       <small>NOT PUBLISHED · PUBLISHING NOT CONNECTED</small>
     </div>
   </div>;
