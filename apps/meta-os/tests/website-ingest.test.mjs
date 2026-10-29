@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {TextEncoder} from 'node:util';
-import {ingestWebsite,extractEvidence,isBlockedIpLiteral,WEBSITE_INGEST_LIMITS} from '../lib/website.js';
+import {ingestWebsite,extractEvidence,extractRenderedEvidence,isBlockedIpLiteral,WEBSITE_INGEST_LIMITS,websiteTelemetry} from '../lib/website.js';
 
 function headers(map){
   const lower={};
@@ -131,3 +131,102 @@ test('exposes documented ingest limits',()=>{
   assert.equal(WEBSITE_INGEST_LIMITS.maxRedirects,3);
   assert.ok(WEBSITE_INGEST_LIMITS.maxBytes>=500000);
 });
+
+test('static-first: does not call rendered fallback when static HTML contains text',async()=>{
+  let readerCalled=false;
+  const fetchImpl=async(href)=>{
+    if(href.startsWith('https://r.jina.ai/')){
+      readerCalled=true;
+      throw new Error('READER_MUST_NOT_BE_CALLED');
+    }
+    return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/html'}),async text(){return PAGE;}};
+  };
+  const r=await ingestWebsite('https://example.org/',{fetchImpl,lookupImpl:publicDns});
+  assert.equal(readerCalled,false);
+  assert.equal(r.renderedVia,undefined);
+  assert.match(r.contentHash,/^sha256:[0-9a-f]{64}$/);
+  assert.equal(r.title,'Northstar Coffee');
+});
+
+test('fallback triggers correctly when static HTML is empty JS shell',async()=>{
+  websiteTelemetry.reset();
+  const JS_SHELL='<!DOCTYPE html><html><head><title>App Shell</title><script src="app.js"></script></head><body><div id="root"></div></body></html>';
+  const RENDERED_MARKDOWN=`Title: Ras Ali Labs | Software, AI & Film
+
+URL Source: https://example.org/
+
+Markdown Content:
+# Intelligent Platforms
+Building digital experiences, AI tools, and creative productions.`;
+
+  const calls=[];
+  const fetchImpl=async(href,init)=>{
+    calls.push({href,headers:init&&init.headers});
+    if(href==='https://example.org/'){
+      return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/html'}),async text(){return JS_SHELL;}};
+    }
+    if(href==='https://r.jina.ai/https://example.org/'){
+      assert.equal(init&&init.headers&&init.headers.accept,'text/plain');
+      return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/plain'}),async text(){return RENDERED_MARKDOWN;}};
+    }
+    throw new Error('UNEXPECTED_URL_'+href);
+  };
+
+  const r=await ingestWebsite('https://example.org/',{fetchImpl,lookupImpl:publicDns,apiKey:'test-jina-key'});
+  assert.equal(calls.length,2);
+  assert.equal(calls[0].href,'https://example.org/');
+  assert.equal(calls[1].href,'https://r.jina.ai/https://example.org/');
+  assert.equal(calls[1].headers.authorization,'Bearer test-jina-key');
+  assert.equal(r.renderedVia,'reader');
+  assert.equal(r.title,'Ras Ali Labs | Software, AI & Film');
+  assert.match(r.excerpt,/Intelligent Platforms Building digital experiences/);
+  assert.match(r.contentHash,/^sha256-text:[0-9a-f]{64}$/);
+  assert.ok(r.wordCount>5);
+  assert.equal(websiteTelemetry.fallbackCount,1);
+  assert.equal(websiteTelemetry.fallbackSuccessCount,1);
+  assert.equal(websiteTelemetry.events[0].ok,true);
+  assert.equal(websiteTelemetry.events[0].targetHost,'example.org');
+});
+
+test('honest errors preserved when both static and reader fallback fail',async()=>{
+  const JS_SHELL='<html><body><div id="root"></div></body></html>';
+  const fetchImpl=async(href)=>{
+    if(href==='https://example.org/'){
+      return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/html'}),async text(){return JS_SHELL;}};
+    }
+    if(href.startsWith('https://r.jina.ai/')){
+      return {ok:false,status:500,type:'basic',headers:headers({'content-type':'text/plain'}),async text(){return 'Reader error';}};
+    }
+  };
+  await assert.rejects(()=>ingestWebsite('https://example.org/',{fetchImpl,lookupImpl:publicDns}),/WEBSITE_EMPTY_CONTENT/);
+});
+
+test('blocked hosts never reach the reader service',async()=>{
+  let readerCalled=false;
+  const fetchImpl=async(href)=>{
+    if(href.startsWith('https://r.jina.ai/')){
+      readerCalled=true;
+      throw new Error('READER_MUST_NOT_BE_CALLED');
+    }
+    return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/html'}),async text(){return PAGE;}};
+  };
+  for(const u of ['https://localhost/','https://10.0.0.1/','https://192.168.1.50/','https://169.254.169.254/']){
+    await assert.rejects(()=>ingestWebsite(u,{fetchImpl,lookupImpl:publicDns}),/WEBSITE_HOST_BLOCKED/);
+  }
+  assert.equal(readerCalled,false);
+});
+
+test('enforces response caps on rendered fallback reader',async()=>{
+  const JS_SHELL='<html><body><div id="root"></div></body></html>';
+  const bigText='Title: Large\n\nMarkdown Content:\n'+'x'.repeat(2000);
+  const fetchImpl=async(href)=>{
+    if(href==='https://example.org/'){
+      return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/html'}),async text(){return JS_SHELL;}};
+    }
+    if(href.startsWith('https://r.jina.ai/')){
+      return {ok:true,status:200,type:'basic',headers:headers({'content-type':'text/plain'}),async text(){return bigText;}};
+    }
+  };
+  await assert.rejects(()=>ingestWebsite('https://example.org/',{fetchImpl,lookupImpl:publicDns,maxBytes:500}),/WEBSITE_RESPONSE_TOO_LARGE/);
+});
+

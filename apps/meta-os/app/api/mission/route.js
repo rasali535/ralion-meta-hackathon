@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {missionInput,planMission,attachApproval} from '../../../lib/mission';
-import {ingestWebsite} from '../../../lib/website';
+import {ingestWebsite,WEBSITE_INGEST_LIMITS} from '../../../lib/website';
 import {missionLiveConfig,resolveMariMode,diagnoseWithMari,sanitizeMariErrorCode} from '../../../lib/mari';
 import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '../../../lib/inference-access';
 import {recordModelUsage} from '../../../lib/telemetry';
@@ -20,7 +20,7 @@ export async function POST(request){
     const fields=missionInput(input);
     let evidence=null,ingestError=null;
     if(fields.website&&process.env.WEBSITE_INGEST_ENABLED!=='false'){
-      try{evidence=await ingestWebsite(fields.website,{timeoutMs:8000});}
+      try{evidence=await ingestWebsite(fields.website,{timeoutMs:WEBSITE_INGEST_LIMITS.timeoutMs});}
       catch(e){ingestError=e instanceof Error?e.message:'WEBSITE_FETCH_FAILED';}
     }
     const presented=extractTokenFromRequest(request);

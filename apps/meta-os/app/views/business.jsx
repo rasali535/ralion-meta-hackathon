@@ -44,14 +44,20 @@ export default function BusinessView(props){
     </form>
     {mission&&<Card title="Website evidence" sub={'Retrieval: '+String(mission.evidence.websiteStatus).replace(/_/g,' ')}>
       <LiveErrorBanner code={status.liveError}/>
-      {site?<Rows items={[
-        {k:'Source',v:<span className="mono">{site.finalUrl}</span>},
-        {k:'Title',v:site.title||'—'},
-        {k:'Summary',v:String(site.excerpt).slice(0,300)},
-        {k:'Size',v:String(site.wordCount)+' words'},
-        {k:'Content hash',v:<span className="mono">{String(site.contentHash).slice(0,24)+'…'}</span>},
-        {k:'Fetched',v:site.fetchedAt},
-      ]}/>:<Banner tone="info">No page text was retrieved for this mission. Blocked or failed retrieval is reported here, never silently skipped.</Banner>}
+      {site?(
+        <>
+          {site.renderedVia==='reader'&&<div style={{marginBottom:'0.75rem'}}><Banner tone="info">Rendered text via reader service</Banner></div>}
+          <Rows items={[
+            {k:'Source',v:<span className="mono">{site.finalUrl}</span>},
+            {k:'Title',v:site.title||'—'},
+            ...(site.renderedVia==='reader'?[{k:'Render method',v:'Rendered text via reader service'}]:[]),
+            {k:'Summary',v:String(site.excerpt).slice(0,300)},
+            {k:'Size',v:String(site.wordCount)+' words'},
+            {k:site.renderedVia==='reader'?'Text hash (rendered)':'Content hash',v:<span className="mono">{String(site.contentHash).slice(0,24)+'…'}</span>},
+            {k:'Fetched',v:site.fetchedAt},
+          ]}/>
+        </>
+      ):<Banner tone="info">No page text was retrieved for this mission. Blocked or failed retrieval is reported here, never silently skipped.</Banner>}
     </Card>}
   </div>;
 }

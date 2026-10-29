@@ -89,11 +89,36 @@ async function assertSafeDns(host,lookupImpl){
   }
 }
 
-async function fetchOnce(href,fetchImpl,timeoutMs,maxBytes){
+export const websiteTelemetry=globalThis.__ralionWebsiteTelemetry||(globalThis.__ralionWebsiteTelemetry={
+  fallbackCount:0,
+  fallbackSuccessCount:0,
+  fallbackFailureCount:0,
+  events:[],
+  recordFallback({ok,latencyMs,errorCode,targetHost}={}){
+    this.fallbackCount++;
+    if(ok)this.fallbackSuccessCount++;else this.fallbackFailureCount++;
+    this.events.push({
+      timestamp:new Date().toISOString(),
+      ok:Boolean(ok),
+      latencyMs:Number.isFinite(latencyMs)?latencyMs:null,
+      errorCode:errorCode?String(errorCode).slice(0,50):null,
+      targetHost:targetHost?String(targetHost).slice(0,100):null,
+    });
+    while(this.events.length>200)this.events.shift();
+  },
+  reset(){
+    this.fallbackCount=0;
+    this.fallbackSuccessCount=0;
+    this.fallbackFailureCount=0;
+    this.events.length=0;
+  }
+});
+
+async function fetchOnce(href,fetchImpl,timeoutMs,maxBytes,headers={'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'}){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
-    return await fetchImpl(href,{method:'GET',redirect:'manual',signal:controller.signal,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'}});
+    return await fetchImpl(href,{method:'GET',redirect:'manual',signal:controller.signal,timeoutMs,maxBytes,headers});
   }catch(e){
     if(e&&e.name==='AbortError')throw new Error('WEBSITE_TIMEOUT');
     if(controller.signal.aborted)throw new Error('WEBSITE_TIMEOUT');
@@ -167,7 +192,8 @@ export function createSecureFetch({lookupImpl=(host,opts)=>dnsLookup(host,opts),
     const {lookup}=await pinnedLookupFor(u.hostname,lookupImpl);
     const timeoutMs=Number(init.timeoutMs)>0?Math.floor(Number(init.timeoutMs)):WEBSITE_INGEST_LIMITS.timeoutMs;
     const maxBytes=Number(init.maxBytes)>0?Math.floor(Number(init.maxBytes)):WEBSITE_INGEST_LIMITS.maxBytes;
-    return nodeHttpsFetch(u.href,{lookup,timeoutMs,maxBytes,headers:{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'},signal:init.signal,requestImpl});
+    const headers=init.headers||{'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)','accept':'text/html,application/xhtml+xml;q=0.9'};
+    return nodeHttpsFetch(u.href,{lookup,timeoutMs,maxBytes,headers,signal:init.signal,requestImpl});
   };
 }
 export const MEDIA_FETCH_LIMITS=Object.freeze({timeoutMs:20000,maxBytes:8*1024*1024,maxRedirects:3});
@@ -276,7 +302,93 @@ export function extractEvidence(html,{sourceUrl,finalUrl}){
   };
 }
 
-export async function ingestWebsite(targetUrl,{fetchImpl,lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl,timeoutMs=WEBSITE_INGEST_LIMITS.timeoutMs,maxBytes=WEBSITE_INGEST_LIMITS.maxBytes,maxRedirects=WEBSITE_INGEST_LIMITS.maxRedirects}={}){
+export function extractRenderedEvidence(rawMarkdown,{sourceUrl,finalUrl}={}){
+  const input=String(rawMarkdown||'');
+  const titleMatch=/^Title:\s*(.+)$/im.exec(input);
+  const title=titleMatch?collapse(titleMatch[1]).slice(0,WEBSITE_INGEST_LIMITS.maxTitleChars):'';
+  const descMatch=/^Description:\s*(.+)$/im.exec(input);
+  const description=descMatch?collapse(descMatch[1]).slice(0,WEBSITE_INGEST_LIMITS.maxDescriptionChars):'';
+  const marker='Markdown Content:';
+  const markerIdx=input.indexOf(marker);
+  const rawBody=markerIdx!==-1?input.slice(markerIdx+marker.length):input;
+  const noHead=rawBody.replace(/<head[^>]*>[\s\S]*?<\/head\s*>/i,' ');
+  const stripped=noHead
+    .replace(/<!--[\s\S]*?-->/g,' ')
+    .replace(/<\?[\s\S]*?\?>/g,' ')
+    .replace(/<(script|style|noscript|template|svg|canvas)[^>]*>[\s\S]*?<\/\1\s*>/gi,' ')
+    .replace(/```[\s\S]*?```/g,' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g,'$1')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/[*#_`~>|\-]/g,' ');
+  const cleaned=collapse(decodeEntities(stripped));
+  const excerpt=cleaned.slice(0,WEBSITE_INGEST_LIMITS.maxExcerptChars);
+  if(!excerpt)throw new Error('WEBSITE_EMPTY_CONTENT');
+  return {
+    schemaVersion:'1.0',
+    sourceUrl:String(sourceUrl||'').slice(0,1000),
+    finalUrl:String(finalUrl||'').slice(0,1000),
+    fetchedAt:new Date().toISOString(),
+    title,
+    description,
+    excerpt,
+    textChars:cleaned.length,
+    wordCount:cleaned.split(/\s+/).filter(Boolean).length,
+    contentHash:'sha256-text:'+createHash('sha256').update(cleaned,'utf8').digest('hex'),
+    citations:finalUrl&&finalUrl!==sourceUrl?[String(sourceUrl).slice(0,1000),String(finalUrl).slice(0,1000)]:[String(sourceUrl).slice(0,1000)],
+    renderedVia:'reader',
+  };
+}
+
+export async function fetchRenderedFallback(targetUrl,{
+  fetchImpl,
+  lookupImpl=(host,opts)=>dnsLookup(host,opts),
+  requestImpl,
+  timeoutMs=WEBSITE_INGEST_LIMITS.timeoutMs,
+  maxBytes=WEBSITE_INGEST_LIMITS.maxBytes,
+  apiKey=(typeof process!=='undefined'&&process.env&&process.env.JINA_API_KEY)||undefined,
+}={}){
+  const safeTarget=assertSafeTargetUrl(targetUrl);
+  await assertSafeDns(stripBrackets(safeTarget.hostname),lookupImpl);
+
+  const readerUrl='https://r.jina.ai/'+safeTarget.href;
+  const headers={
+    'user-agent':'RalionOS-MetaAI-Edition/0.1 (hackathon evidence fetcher)',
+    'accept':'text/plain',
+  };
+  if(apiKey)headers['authorization']=`Bearer ${apiKey}`;
+
+  const t0=Date.now();
+  const transport=fetchImpl||createSecureFetch({lookupImpl,requestImpl});
+  let response;
+  try{
+    response=await fetchOnce(readerUrl,transport,timeoutMs,maxBytes,headers);
+  }catch(err){
+    const code=err instanceof Error?err.message:'WEBSITE_FETCH_FAILED';
+    websiteTelemetry.recordFallback({ok:false,latencyMs:Date.now()-t0,errorCode:code,targetHost:safeTarget.hostname});
+    throw err;
+  }
+
+  if(!response||!response.ok){
+    const status=response?response.status:'UNKNOWN';
+    const code='WEBSITE_REQUEST_FAILED_'+status;
+    websiteTelemetry.recordFallback({ok:false,latencyMs:Date.now()-t0,errorCode:code,targetHost:safeTarget.hostname});
+    throw new Error(code);
+  }
+
+  const text=await readCappedText(response,maxBytes);
+  try{
+    const evidence=extractRenderedEvidence(text,{sourceUrl:safeTarget.href,finalUrl:safeTarget.href});
+    websiteTelemetry.recordFallback({ok:true,latencyMs:Date.now()-t0,targetHost:safeTarget.hostname});
+    return evidence;
+  }catch(err){
+    const code=err instanceof Error?err.message:'WEBSITE_EMPTY_CONTENT';
+    websiteTelemetry.recordFallback({ok:false,latencyMs:Date.now()-t0,errorCode:code,targetHost:safeTarget.hostname});
+    throw err;
+  }
+}
+
+export async function ingestWebsite(targetUrl,{fetchImpl,lookupImpl=(host,opts)=>dnsLookup(host,opts),requestImpl,timeoutMs=WEBSITE_INGEST_LIMITS.timeoutMs,maxBytes=WEBSITE_INGEST_LIMITS.maxBytes,maxRedirects=WEBSITE_INGEST_LIMITS.maxRedirects,apiKey}={}){
   let current=assertSafeTargetUrl(targetUrl);
   const transport=fetchImpl||createSecureFetch({lookupImpl,requestImpl});
   const chain=[current.href];
@@ -304,6 +416,34 @@ export async function ingestWebsite(targetUrl,{fetchImpl,lookupImpl=(host,opts)=
   const mediaType=rawType.split(';')[0].trim().toLowerCase();
   if(mediaType&&mediaType!=='text/html'&&mediaType!=='application/xhtml+xml')throw new Error('WEBSITE_UNSUPPORTED_CONTENT');
   const text=await readCappedText(response,maxBytes);
-  const evidence=extractEvidence(text,{sourceUrl:chain[0],finalUrl:current.href});
-  return {...evidence,redirectHops:hops};
+  try{
+    const evidence=extractEvidence(text,{sourceUrl:chain[0],finalUrl:current.href});
+    return {...evidence,redirectHops:hops};
+  }catch(extractErr){
+    if(extractErr&&extractErr.message==='WEBSITE_EMPTY_CONTENT'){
+      try{
+        const rendered=await fetchRenderedFallback(current.href,{
+          fetchImpl,
+          lookupImpl,
+          requestImpl,
+          timeoutMs,
+          maxBytes,
+          apiKey,
+        });
+        return {
+          ...rendered,
+          sourceUrl:chain[0],
+          finalUrl:current.href,
+          citations:current.href!==chain[0]?[chain[0],current.href]:[chain[0]],
+          redirectHops:hops,
+        };
+      }catch(fallbackErr){
+        if(fallbackErr&&fallbackErr.message==='WEBSITE_RESPONSE_TOO_LARGE'){
+          throw fallbackErr;
+        }
+        throw new Error('WEBSITE_EMPTY_CONTENT');
+      }
+    }
+    throw extractErr;
+  }
 }

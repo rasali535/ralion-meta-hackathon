@@ -54,3 +54,13 @@ test('caps and verifies injected evidence fields',()=>{
   assert.equal(m.evidence.site.contentHash,'UNVERIFIED');
   assert.equal(m.evidence.site.redirectHops,10);
 });
+
+test('attaches rendered fallback evidence with RETRIEVED_RENDERED and sha256-text hash',()=>{
+  const textHash='sha256-text:'+'cd'.repeat(32);
+  const m=planMission({...base,website:'https://example.org'},{evidence:evidence({contentHash:textHash,renderedVia:'reader'})});
+  assert.equal(m.evidence.websiteRetrieved,true);
+  assert.equal(m.evidence.websiteStatus,'RETRIEVED_RENDERED');
+  assert.equal(m.evidence.site.renderedVia,'reader');
+  assert.equal(m.evidence.site.contentHash,textHash);
+});
+
