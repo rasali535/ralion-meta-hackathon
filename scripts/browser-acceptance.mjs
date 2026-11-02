@@ -109,6 +109,11 @@ async function runBrowserAcceptance() {
 
   await mkdir(SCREENSHOT_DIR, { recursive: true });
 
+  const hasLiveModalUrl = typeof process.env.MODAL_DISPATCH_URL === 'string' && process.env.MODAL_DISPATCH_URL.trim().startsWith('https://');
+  const modalDispatchEnv = hasLiveModalUrl
+    ? process.env.MODAL_DISPATCH_URL.trim()
+    : 'https://127.0.0.1:1/modal-offline-degradation-test';
+
   // Start Next.js dev server with required configuration and mock generation
   console.log('Starting Next.js server with Premium OS + Demo Session configuration...');
   const nextProcess = spawn('npm', ['--prefix', 'apps/meta-os', 'run', 'dev', '--', '-p', String(TARGET_PORT)], {
@@ -125,7 +130,9 @@ async function runBrowserAcceptance() {
       MODEL_API_KEY: 'test-server-key-safe',
       MOCK_IMAGE_GENERATION: 'true',
       CREATIVE_STORAGE_DIR: '.data/creative_test',
-      DISPATCH_STORAGE_DIR: '.data/dispatch_test'
+      DISPATCH_STORAGE_DIR: '.data/dispatch_test',
+      MODAL_SANDBOX_ENABLED: 'true',
+      MODAL_DISPATCH_URL: modalDispatchEnv
     }
   });
 
@@ -519,7 +526,7 @@ async function runBrowserAcceptance() {
     }
 
     // Verify Sandbox Dispatch Outbox in Activity Workspace before post-approval edit
-    console.log('Testing Sandbox Dispatch Outbox in Activity Workspace...');
+    console.log('Testing Sandbox Dispatch Outbox + Modal Execution Binding in Activity Workspace...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('activity')).click();
     })()`);
@@ -530,15 +537,26 @@ async function runBrowserAcceptance() {
       const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Export approved drafts'));
       if (btn) btn.click();
     })()`);
-    await waitForCondition(`document.body.innerText.includes('dsp_') && document.body.innerText.includes('approval → export')`, 15000);
+    await waitForCondition(`document.body.innerText.includes('dsp_') && document.body.innerText.includes('approval → export')`, 25000);
 
     const dispatchReceiptLine = await client.evaluate(`(() => {
       const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Sandbox dispatches'));
       return card?.innerText || '';
     })()`);
-    console.log('Sandbox Dispatch Receipt Rendered:', dispatchReceiptLine.replace(/\n/g, ' | ').slice(0, 220));
+    console.log('Sandbox Dispatch Receipt Rendered:', dispatchReceiptLine.replace(/\n/g, ' | ').slice(0, 320));
     if (!dispatchReceiptLine.includes('dsp_') || !dispatchReceiptLine.includes('approval → export')) {
       throw new Error('Sandbox dispatch receipt or latency was not rendered in Activity!');
+    }
+    if (hasLiveModalUrl) {
+      if (!dispatchReceiptLine.includes('sandbox mexec_')) {
+        throw new Error('Expected live Modal execution ID (sandbox mexec_...) in receipt: ' + dispatchReceiptLine);
+      }
+      console.log('Verified live Modal execution ID bound in dispatch receipt!');
+    } else {
+      if (!dispatchReceiptLine.includes('Sandbox execution unavailable (MODAL_REQUEST_FAILED) — receipt saved without external execution.')) {
+        throw new Error('Expected clean receipt with Modal degradation note when endpoint is offline: ' + dispatchReceiptLine);
+      }
+      console.log('Verified clean receipt with graceful Modal degradation note when endpoint is offline.');
     }
 
     // Click Export again to verify idempotent deduplication

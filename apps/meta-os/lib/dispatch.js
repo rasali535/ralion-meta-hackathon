@@ -9,6 +9,14 @@
  * spends, or contacts any external API: every receipt carries execution
  * SANDBOX_EXPORT_ONLY and publishStatus NOT_CONNECTED.
  *
+ * When the operator configures MODAL_DISPATCH_URL, the dispatch route also
+ * runs the bundle through the Modal sandbox executor
+ * (modal/dispatch_executor.py) and binds the returned executionId into the
+ * receipt signature under sandboxExecution. That attestation is independent
+ * compute evidence, not publishing. Modal down or unconfigured degrades to
+ * the plain receipt. Receipts minted before this field existed keep
+ * verifying: an absent sandboxExecution signs exactly as before.
+ *
  * Verification reuses the approval trust root: the caller submits the
  * mission plus the full server-minted approval record, and the plan hash
  * binding rejects any post-approval edit. Dispatches are idempotent per
@@ -75,8 +83,16 @@ function canonicalBundle({missionId,organizationId,workspaceId,planHash,assets,c
   return {missionId,organizationId,workspaceId,planHash,assets,channels};
 }
 function sha256Hex(text){return createHash('sha256').update(text,'utf8').digest('hex');}
-function sigPayload({dispatchId,missionId,planHash,bundleHash,dispatchedAt}){
-  return `${dispatchId}:${missionId}:${planHash}:${bundleHash}:${dispatchedAt}`;
+function sigPayload({dispatchId,missionId,planHash,bundleHash,dispatchedAt,executionId}){
+  const base=`${dispatchId}:${missionId}:${planHash}:${bundleHash}:${dispatchedAt}`;
+  return executionId?`${base}:${executionId}`:base;
+}
+function signReceipt({dispatchId,missionId,planHash,bundleHash,dispatchedAt,executionId,hmacSecret}){
+  return createHmac('sha256',hmacSecret).update(sigPayload({dispatchId,missionId,planHash,bundleHash,dispatchedAt,executionId}),'utf8').digest('hex');
+}
+function boundExecutionId(receipt){
+  const se=receipt&&receipt.sandboxExecution&&typeof receipt.sandboxExecution==='object'?receipt.sandboxExecution:null;
+  return se?String(se.executionId||''):'';
 }
 export function buildDispatchReceipt({mission,approval,tenant,hmacSecret,now}={}){
   if(!mission||typeof mission!=='object')throw new Error('DISPATCH_MISSION_REQUIRED');
@@ -97,13 +113,14 @@ export function buildDispatchReceipt({mission,approval,tenant,hmacSecret,now}={}
   const assets=manifestAssets(mission);
   const channels=manifestChannels(mission);
   const planHash=String(approval.planHash||'');
-  const bundleHash=sha256Hex(JSON.stringify(canonicalBundle({missionId:mid,organizationId:org,workspaceId:ws,planHash,assets,channels})));
+  const bundleJson=JSON.stringify(canonicalBundle({missionId:mid,organizationId:org,workspaceId:ws,planHash,assets,channels}));
+  const bundleHash=sha256Hex(bundleJson);
   const dispatchId=mintDispatchId();
   const dispatchedAt=new Date(now===undefined?Date.now():now).toISOString();
   const approvedMs=Date.parse(String(approval.approvedAt||''));
   const dispatchedMs=Date.parse(dispatchedAt);
   const approvalLatencyMs=Number.isFinite(approvedMs)&&Number.isFinite(dispatchedMs)?Math.max(0,dispatchedMs-approvedMs):null;
-  const signature=createHmac('sha256',hmacSecret).update(sigPayload({dispatchId,missionId:mid,planHash,bundleHash,dispatchedAt}),'utf8').digest('hex');
+  const signature=signReceipt({dispatchId,missionId:mid,planHash,bundleHash,dispatchedAt,executionId:'',hmacSecret});
   return Object.freeze({
     schemaVersion:DISPATCH_SCHEMA_VERSION,
     dispatchId,
@@ -120,12 +137,50 @@ export function buildDispatchReceipt({mission,approval,tenant,hmacSecret,now}={}
     assets,
     channels,
     bundleHash,
+    bundleJson,
+    sandboxExecution:null,
     dispatchedAt,
     approvalLatencyMs,
     execution:DISPATCH_EXECUTION_STATUS,
     publishStatus:'NOT_CONNECTED',
     signature,
   });
+}
+// Binds a Modal sandbox attestation to an existing receipt by re-signing
+// with the execution id in the payload. The bundle hash is untouched:
+// execution attests the bytes, it never rewrites them.
+export function attachDispatchExecution(receipt,attestation,{hmacSecret,now=Date.now()}={}){
+  if(!receipt||typeof receipt!=='object')throw new Error('DISPATCH_RECEIPT_INVALID');
+  if(!attestation||typeof attestation!=='object')throw new Error('DISPATCH_EXECUTION_INVALID');
+  const executionId=String(attestation.executionId||'');
+  if(!executionId)throw new Error('DISPATCH_EXECUTION_INVALID');
+  if(!hmacSecret)throw new Error('DISPATCH_SECRET_REQUIRED');
+  if(!verifyDispatchReceipt(receipt,{hmacSecret}))throw new Error('DISPATCH_RECEIPT_INVALID');
+  const sandboxExecution={
+    executionId:executionId.slice(0,80),
+    executor:String(attestation.executor||'modal-sandbox').slice(0,40),
+    bundleHashVerified:attestation.bundleHashVerified===true,
+    packagedAt:String(attestation.packagedAt||'').slice(0,40),
+    attachedAt:new Date(now).toISOString(),
+  };
+  const signature=signReceipt({
+    dispatchId:String(receipt.dispatchId||''),
+    missionId:String(receipt.missionId||''),
+    planHash:String((receipt.approval&&receipt.approval.planHash)||''),
+    bundleHash:String(receipt.bundleHash||''),
+    dispatchedAt:String(receipt.dispatchedAt||''),
+    executionId:sandboxExecution.executionId,
+    hmacSecret,
+  });
+  return Object.freeze({...receipt,sandboxExecution,signature});
+}
+// Payload for the Modal sandbox: the exact canonical string plus the
+// claimed hash, so the sandbox hashes bytes instead of re-serializing.
+export function dispatchBundlePayload(receipt){
+  if(!receipt||typeof receipt!=='object')throw new Error('DISPATCH_RECEIPT_INVALID');
+  if(typeof receipt.bundleJson!=='string'||!receipt.bundleJson)throw new Error('DISPATCH_BUNDLE_INVALID');
+  if(typeof receipt.bundleHash!=='string'||!receipt.bundleHash)throw new Error('DISPATCH_BUNDLE_INVALID');
+  return {schemaVersion:DISPATCH_SCHEMA_VERSION,bundleJson:receipt.bundleJson,claimedBundleHash:receipt.bundleHash};
 }
 export function verifyDispatchReceipt(receipt,{hmacSecret}={}){
   if(!receipt||typeof receipt!=='object')return false;
@@ -141,13 +196,15 @@ export function verifyDispatchReceipt(receipt,{hmacSecret}={}){
     channels:Array.isArray(receipt.channels)?receipt.channels:[],
   })));
   if(String(receipt.bundleHash||'')!==expected)return false;
-  const expectedSig=createHmac('sha256',hmacSecret).update(sigPayload({
+  const expectedSig=signReceipt({
     dispatchId:String(receipt.dispatchId||''),
     missionId:String(receipt.missionId||''),
     planHash:String((receipt.approval&&receipt.approval.planHash)||''),
     bundleHash:expected,
     dispatchedAt:String(receipt.dispatchedAt||''),
-  }),'utf8').digest('hex');
+    executionId:boundExecutionId(receipt),
+    hmacSecret,
+  });
   const a=Buffer.from(String(receipt.signature||''),'utf8');
   const b=Buffer.from(expectedSig,'utf8');
   if(a.length!==b.length||a.length===0)return false;
