@@ -23,10 +23,15 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
   const status=missionStatus(mission);
   const [telemetry,setTelemetry]=useState(null);
   const [memoryData,setMemoryData]=useState(null);
+  const [dispatches,setDispatches]=useState(null);
+  const [dispatchBusy,setDispatchBusy]=useState(false);
+  const [dispatchError,setDispatchError]=useState('');
+  const [dispatchNote,setDispatchNote]=useState('');
   const hasAuth=Boolean(token||session?.authenticated);
+  const missionId=mission&&mission.missionId?mission.missionId:'';
 
   useEffect(()=>{
-    if(!hasAuth){setTelemetry(null);setMemoryData(null);return;}
+    if(!hasAuth){setTelemetry(null);setMemoryData(null);setDispatches(null);return;}
     const headers={};
     if(token)headers['x-meta-demo-access']=token;
     fetch('/api/telemetry/usage?limit=20',{credentials:'include',headers}).then(r=>r.json()).then(j=>{
@@ -36,7 +41,30 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
       if(j&&j.ok)setMemoryData(j);
       else setMemoryData(null);
     }).catch(()=>setMemoryData(null));
-  },[hasAuth,token]);
+    const dq=missionId?('?missionId='+encodeURIComponent(missionId)+'&limit=20'):'?limit=20';
+    fetch('/api/dispatch'+dq,{credentials:'include',headers}).then(r=>r.json()).then(j=>{
+      setDispatches(Array.isArray(j&&j.records)?j.records:[]);
+    }).catch(()=>setDispatches([]));
+  },[hasAuth,token,missionId]);
+
+  function exportToSandbox(){
+    if(dispatchBusy)return;
+    const record=mission&&mission.approvalRecord;
+    if(!record){setDispatchError('Approve these drafts first — the signed approval record is required for export.');return;}
+    setDispatchBusy(true);setDispatchError('');setDispatchNote('');
+    const headers={'content-type':'application/json'};
+    if(token)headers['x-meta-demo-access']=token;
+    fetch('/api/dispatch',{method:'POST',credentials:'include',headers,body:JSON.stringify({mission,approval:record})}).then(async r=>{
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(j.error||'Dispatch failed');
+      return j;
+    }).then(j=>{
+      if(j&&j.receipt){
+        setDispatches(d=>{const cur=Array.isArray(d)?d:[];return cur.some(x=>x&&x.dispatchId===j.receipt.dispatchId)?cur:[j.receipt,...cur];});
+        if(j.deduped)setDispatchNote('Already exported — showing the existing receipt for this approval.');
+      }
+    }).catch(e=>setDispatchError(String((e&&e.message)||'Dispatch failed').slice(0,160))).finally(()=>setDispatchBusy(false));
+  }
 
   if(status.presence==='none'){
     return <div className="page">
@@ -52,8 +80,9 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
   const failures=(telemetry||[]).filter(r=>r&&r.ok!==true);
   const approval=m.approval&&typeof m.approval==='object'?m.approval:{status:'NOT_REQUESTED'};
   const decided=approval.status==='APPROVED'||approval.status==='REJECTED';
+  const dispatchList=Array.isArray(dispatches)?dispatches:[];
   let loop=null;
-  try{loop=buildLearningLoop(m);}catch{loop=null;}
+  try{loop=buildLearningLoop(m,{dispatches:dispatchList});}catch{loop=null;}
   const events=[
     {t:fmtTime(m.createdAt),label:'Mission created',detail:'Mission '+String(m.missionId).slice(0,8)+' · '+String(m.provider).replace(/_/g,' ')},
     {t:fmtTime(m.createdAt),label:'Website evidence',detail:String(m.evidence.websiteStatus).replace(/_/g,' ')+(status.hasEvidence?' · '+String(m.evidence.site.wordCount)+' words, hash verified':'' )},
@@ -61,6 +90,9 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
     {t:fmtTime(m.createdAt),label:'Approval',detail:String(m.approval.status).replace(/_/g,' ')},
     {t:fmtTime(m.createdAt),label:'Execution',detail:String(m.execution.status).replace(/_/g,' ')},
   ];
+  if(dispatchList.length>0){
+    events.push({t:fmtTime(dispatchList[0].dispatchedAt),label:'Sandbox export',detail:dispatchList.length+' receipt(s) · latest '+String(dispatchList[0].dispatchId).slice(0,16)+'… · nothing published'});
+  }
 
   return <div className="page">
     <div className="page-head"><div className="row"><h1>Activity</h1><ModeBadge status={status}/></div><p className="lede">What was planned, what ran, and what remains unmeasured for {m.business.name}.</p></div>
@@ -96,12 +128,33 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
         ]}/>}
       </Card>
     </div>
+    <Card title="Sandbox dispatches" sub="Signed export receipts for this mission. Exports only — nothing is published, scheduled, or spent.">
+      {!hasAuth?<p className="muted">Start a demo session to export approved drafts.</p>
+      :approval.status!=='APPROVED'?<p className="muted">Approve these drafts in the Social workspace to enable sandbox export.</p>
+      :<>
+        <div className="row" style={{marginBottom:10}}>
+          <Badge tone="muted">SANDBOX EXPORT ONLY</Badge>
+          <Badge tone="muted">NOT PUBLISHED</Badge>
+          {dispatchList.length>0&&<Badge tone="ok">{dispatchList.length} receipt(s)</Badge>}
+        </div>
+        {m.approvalRecord
+          ?<button type="button" className="btn primary" disabled={dispatchBusy} onClick={exportToSandbox}>{dispatchBusy?'Exporting…':(dispatchList.length>0?'Export again (returns existing receipt)':'Export approved drafts')}</button>
+          :<p className="muted">This approval predates sandbox export — re-approve in the Social workspace to enable export.</p>}
+        {dispatchError&&<p className="muted" style={{color:'var(--danger)',marginTop:8}}>{dispatchError}</p>}
+        {dispatchNote&&<p className="muted" style={{marginTop:8}}>{dispatchNote}</p>}
+        <div style={{marginTop:12}}>
+          {dispatches===null?<p className="muted">Loading export receipts…</p>
+          :dispatchList.length===0?<p className="muted">No exports yet — approved bytes have not left the workspace.</p>
+          :<ul className="timeline">{dispatchList.map(r=><li key={r.dispatchId}><span className="t-time">{fmtTime(r.dispatchedAt)}</span><span><strong>Receipt </strong><span className="mono">{String(r.dispatchId).slice(0,20)+'…'}</span>{' · approval → export '+fmtLatency(r.approvalLatencyMs)}{' · '+(Array.isArray(r.channels)?r.channels.length:0)+' channel(s) · '+(Array.isArray(r.assets)?r.assets.length:0)+' asset(s)'}{' · bundle '}<span className="mono">{String(r.bundleHash||'').slice(0,16)+'…'}</span></span></li>)}</ul>}
+        </div>
+      </>}
+    </Card>
     {failures.length>0&&<Card title="Failed operations" sub="What failed and how to recover. Failed calls release their budget.">
       <Rows items={failures.slice(0,5).map((r,i)=>({k:(r.operation||'operation').replace(/-/g,' ')+' · '+String(r.model||''),v:(r.errorCode||'Unknown error')+' — '+guidanceFor(r.errorCode)}))}/>
     </Card>}
     <Card title="Learning loop" sub="Read-only derivation from this mission. Nothing here is measured.">
       {!loop?<p className="muted">This mission cannot be inspected yet.</p>:<>
-        <div className="row"><Badge tone="muted">{loop.loopId}</Badge><Badge tone={loop.approval.status==='APPROVED'?'ok':'warn'}>{loop.approval.status.replace(/_/g,' ')}</Badge><Badge tone="muted">Publish NOT CONNECTED</Badge><Badge tone="muted">Performance NOT AVAILABLE</Badge></div>
+        <div className="row"><Badge tone="muted">{loop.loopId}</Badge><Badge tone={loop.approval.status==='APPROVED'?'ok':'warn'}>{loop.approval.status.replace(/_/g,' ')}</Badge><Badge tone={loop.dispatch&&loop.dispatch.count>0?'ok':'muted'}>{loop.dispatch?loop.dispatch.status.replace(/_/g,' '):'NOT DISPATCHED'}</Badge><Badge tone="muted">Publish NOT CONNECTED</Badge><Badge tone="muted">Performance NOT AVAILABLE</Badge></div>
         <Rows items={[
           {k:'1 · Source evidence',v:loop.sourceEvidence.websiteStatus.replace(/_/g,' ')+(loop.sourceEvidence.retrieved?' · '+loop.sourceEvidence.wordCount+' words · '+String(loop.sourceEvidence.contentHash).slice(0,18)+'…':'')},
           {k:'2 · MARI recommendation',v:(loop.recommendation.opportunity||'—')+(loop.recommendation.live?' (live '+loop.recommendation.model+')':' (deterministic draft)')},
@@ -111,6 +164,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
           {k:'6 · Publication',v:'NOT CONNECTED — no connector, ad account, or spending path exists'},
           {k:'7 · Performance',v:'NOT AVAILABLE — no impressions, conversions, or revenue are measured'},
         ]}/>
+        {loop.dispatch&&loop.dispatch.count>0&&<p className="muted" style={{marginTop:8}}>Sandbox export: {loop.dispatch.count} receipt(s); latest {String(loop.dispatch.receipts[0].dispatchId).slice(0,20)+'…'} · approval → export {fmtLatency(loop.dispatch.receipts[0].approvalLatencyMs)}. Exports attest approved bytes left the workspace for the tenant outbox — they are not publishing.</p>}
         <p className="muted" style={{marginTop:10}}>{loop.learning}</p>
       </>}
     </Card>

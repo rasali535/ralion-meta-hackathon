@@ -123,7 +123,8 @@ async function runBrowserAcceptance() {
       META_REASONING_API_ENABLED: 'true',
       MODEL_API_KEY: 'test-server-key-safe',
       MOCK_IMAGE_GENERATION: 'true',
-      CREATIVE_STORAGE_DIR: '.data/creative_test'
+      CREATIVE_STORAGE_DIR: '.data/creative_test',
+      DISPATCH_STORAGE_DIR: '.data/dispatch_test'
     }
   });
 
@@ -516,6 +517,44 @@ async function runBrowserAcceptance() {
       throw new Error('Approval banner not displayed as expected: ' + approvalBanner);
     }
 
+    // Verify Sandbox Dispatch Outbox in Activity Workspace before post-approval edit
+    console.log('Testing Sandbox Dispatch Outbox in Activity Workspace...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('activity')).click();
+    })()`);
+    await waitForCondition(`document.querySelector(".page-head h1")?.innerText?.includes('Activity')`, 15000);
+
+    // Click Export approved drafts
+    await client.evaluate(`(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Export approved drafts'));
+      if (btn) btn.click();
+    })()`);
+    await waitForCondition(`document.body.innerText.includes('dsp_') && document.body.innerText.includes('approval → export')`, 15000);
+
+    const dispatchReceiptLine = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Sandbox dispatches'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Sandbox Dispatch Receipt Rendered:', dispatchReceiptLine.replace(/\n/g, ' | ').slice(0, 220));
+    if (!dispatchReceiptLine.includes('dsp_') || !dispatchReceiptLine.includes('approval → export')) {
+      throw new Error('Sandbox dispatch receipt or latency was not rendered in Activity!');
+    }
+
+    // Click Export again to verify idempotent deduplication
+    console.log('Testing idempotent re-dispatch deduplication...');
+    await client.evaluate(`(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Export again'));
+      if (btn) btn.click();
+    })()`);
+    await waitForCondition(`document.body.innerText.includes('Already exported — showing the existing receipt for this approval.')`, 15000);
+    console.log('Verified idempotent deduplication note: Already exported — showing the existing receipt for this approval.');
+
+    // Return to Social Workspace to test post-approval draft edit invalidation
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('social')).click();
+    })()`);
+    await waitForCondition(`document.querySelector(".page-head h1")?.innerText?.includes('Social')`, 15000);
+
     // Test Approval Invalidation after draft edit
     console.log('Testing approval invalidation when draft is edited after approval...');
     await client.evaluate(`(() => {
@@ -549,8 +588,8 @@ async function runBrowserAcceptance() {
       throw new Error('Approval invalidation banner was not displayed after editing draft!');
     }
 
-    // 9. Activity Workspace & Learning Loop & Business Memory
-    console.log('\n[9/12] Testing Activity Workspace: Usage, Budget, Learning Loop, and Business Memory...');
+    // 9. Activity Workspace & Learning Loop & Business Memory & Stale Approval Cleared
+    console.log('\n[9/12] Testing Activity Workspace: Usage, Budget, Learning Loop, Business Memory, and Stale Approval Reset...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('activity')).click();
     })()`);
@@ -563,9 +602,21 @@ async function runBrowserAcceptance() {
     if (!activityCards.some(t => t.includes('Business memory'))) {
       throw new Error('Business memory card was not found in Activity workspace');
     }
+    if (!activityCards.some(t => t.includes('Sandbox dispatches'))) {
+      throw new Error('Sandbox dispatches card was not found in Activity workspace');
+    }
 
-    // Wait for memory data to load
+    // Wait for memory and dispatch data to load
     await wait(800);
+    const dispatchCardAfterEdit = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Sandbox dispatches'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Sandbox Dispatches Card after draft edit:', dispatchCardAfterEdit.replace(/\n/g, ' | ').slice(0, 220));
+    if (!dispatchCardAfterEdit.includes('Approve these drafts in the Social workspace to enable sandbox export.')) {
+      throw new Error('Expected stale approval record to be cleared after draft edit in Sandbox dispatches card!');
+    }
+
     const memoryCardText = await client.evaluate(`(() => {
       const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Business memory'));
       return card?.innerText || '';
