@@ -43,7 +43,7 @@ How the models are used in the application code:
 
 ## 4. Security controls and verification audit
 
-All 22 security controls required for production readiness and safe hackathon operation have been independently verified:
+All 23 security controls required for production readiness and safe hackathon operation have been independently verified:
 
 | # | Control | Implementation | Verification Status |
 | :- | :--- | :--- | :--- |
@@ -69,6 +69,7 @@ All 22 security controls required for production readiness and safe hackathon op
 | 20 | Instant session revocation & expiry | In-memory revocation registry `revokeSession` invalidates active cookies before TTL expiry | **VERIFIED** |
 | 21 | Sandbox dispatch plan-hash binding | `buildDispatchReceipt` re-verifies the full approval record against submitted mission bytes; post-approval edits rejected with `DISPATCH_PLAN_TAMPERED` | **VERIFIED** |
 | 22 | Tenant-isolated idempotent dispatch outbox | Signed receipts (`dsp_` ids) stored per tenant with `SANDBOX_EXPORT_ONLY` plus `NOT_CONNECTED`; re-dispatch returns the existing receipt | **VERIFIED** |
+| 23 | Read-only live capability probe | `describeLiveCapability` reports flags, key, auth, and budgets without consuming rate limits or reserving budget | **VERIFIED** |
 
 *Note on Local Storage & Process Memory:* Current budget, token buckets, session revocation registry, and asset storage reside in local process memory and file paths (`.data/creative/`). On Vercel serverless environments, storage automatically falls back to ephemeral `/tmp/ralion-creative` as documented in [docs/VERCEL_STORAGE_LIMITATIONS.md](VERCEL_STORAGE_LIMITATIONS.md). A production deployment uses external object storage (S3/R2) and database persistence.
 
@@ -76,7 +77,7 @@ Production isolation: no production Ralion OS code, database, Stripe, Meta ad ac
 
 ## 5. Tests
 
-201 passing tests (9 root, 192 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
+209 passing tests (9 root, 200 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
 
 ```bash
 npm test
@@ -104,6 +105,7 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/inference-access.test.mjs` | 7 |
 | `apps/meta-os/tests/inference-reserve.test.mjs` | 3 |
 | `apps/meta-os/tests/learning-loop.test.mjs` | 6 |
+| `apps/meta-os/tests/live-capability.test.mjs` | 8 |
 | `apps/meta-os/tests/live-probes.test.mjs` | 3 |
 | `apps/meta-os/tests/mari.test.mjs` | 6 |
 | `apps/meta-os/tests/media-fetch.test.mjs` | 5 |
@@ -126,7 +128,7 @@ Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_D
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (201/201 passing: 9 root + 192 Meta OS).
+1. Clone the repo and run the two test commands above (209/209 passing: 9 root + 200 Meta OS).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
 3. Observe automatic demo session initialization: topbar displays `DEMO SESSION` badge; all protected actions (mission planning, creative generation, social approval, usage telemetry) authenticate seamlessly via server-issued `HttpOnly` session cookie without requiring manually entering or pasting any token.
 4. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission with active session, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, activity workspace with usage telemetry and 7-stage learning loop inspector, and settings workspace session revocation and re-issuance lifecycle.

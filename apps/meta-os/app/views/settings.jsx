@@ -1,6 +1,24 @@
-import {Card,Rows,ModelReadiness} from '../components/ui';
+import {Badge,Banner,Card,Rows,ModelReadiness} from '../components/ui';
 
-export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus,session,startDemoSession,revokeDemoSession}){
+const LIVE_REASON_LABELS={
+  LIVE_READY:'All prerequisites are met.',
+  KEY_MISSING:'No server model key is configured on this deployment.',
+  LIVE_DISABLED:'Live inference flags are off on this deployment.',
+  UNAUTHENTICATED:'This workspace is not authenticated.',
+  SESSION_REVOKED:'The current session was revoked.',
+  ACCESS_NOT_CONFIGURED:'Access control is not configured on this deployment.',
+  BUDGET_EXHAUSTED:'Both reasoning budgets are exhausted for today.',
+};
+
+export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus,session,startDemoSession,revokeDemoSession,live,setLive,mariMode,setMariMode}){
+  const liveCap=metaStatus&&metaStatus.live?metaStatus.live:null;
+  function budgetText(mode){
+    if(!liveCap)return metaStatus?'Unavailable':'Loading…';
+    if(!liveCap.authenticated)return 'Start a demo session to load';
+    const b=liveCap.budget&&liveCap.budget[mode];
+    if(!b||b.remainingUnits===null||b.remainingUnits===undefined)return 'Unreported';
+    return b.remainingUnits+' remaining of '+b.dailyLimit+(b.allowed?'':' (exhausted)');
+  }
   return <div className="page">
     <div className="page-head"><h1>Settings</h1><p className="lede">Workspace preferences and the usage policy enforced by this deployment.</p></div>
     <div className="grid-2">
@@ -23,6 +41,24 @@ export default function SettingsView({theme,setTheme,wsName,setWsName,metaStatus
         <button type="button" className="btn primary small" onClick={()=>startDemoSession&&startDemoSession(wsName)}>Start / Resume demo session</button>
         {session?.authenticated&&<button type="button" className="btn ghost small" onClick={()=>revokeDemoSession&&revokeDemoSession()}>Revoke demo session</button>}
       </div>
+    </Card>
+    <Card title="Live MARI mode" sub="One-click live reasoning for new missions. Without every prerequisite, missions run as deterministic demos.">
+      <div className="row" style={{marginBottom:10}}>
+        <Badge tone={liveCap?(liveCap.ready?'ok':'warn'):'muted'}>{liveCap?(liveCap.ready?'LIVE READY':String(liveCap.reason||'UNKNOWN').replace(/_/g,' ')):(metaStatus?'STATUS UNAVAILABLE':'LOADING')}</Badge>
+        {live&&<Badge tone="info">LIVE REQUESTED</Badge>}
+      </div>
+      <Rows items={[
+        {k:'Server key',v:liveCap?(liveCap.keyConfigured?'Configured':'Not configured'):(metaStatus?'Unavailable':'Loading…')},
+        {k:'Master switch',v:liveCap?(liveCap.masterEnabled?'On':'Off'):(metaStatus?'Unavailable':'Loading…')},
+        {k:'MARI switch',v:liveCap?(liveCap.mariEnabled?'On':'Off'):(metaStatus?'Unavailable':'Loading…')},
+        {k:'Session',v:liveCap?(liveCap.authenticated?liveCap.organizationId+' / '+liveCap.workspaceId:'Not authenticated'):(metaStatus?'Unavailable':'Loading…')},
+        {k:'Spark budget',v:budgetText('spark')},
+        {k:'Wonder budget',v:budgetText('wonder')},
+      ]}/>
+      <div className="check-row" style={{marginTop:12}}><input id="live-toggle" type="checkbox" checked={!!live} onChange={e=>setLive&&setLive(e.target.checked)}/><label htmlFor="live-toggle">Enable live MARI for new missions. <span className="muted">Billable inference with budget guards; any failure falls back to a deterministic demo.</span></label></div>
+      {live&&<label className="field" style={{marginTop:8}}>Reasoning model<select className="select" value={mariMode} onChange={e=>setMariMode&&setMariMode(e.target.value)}><option value="spark">Muse Spark (fast)</option><option value="wonder">Muse Wonder (deep)</option></select></label>}
+      {live&&liveCap&&!liveCap.ready&&<div style={{marginTop:8}}><Banner tone="warn">Live requested, but {LIVE_REASON_LABELS[liveCap.reason]||liveCap.reason} Missions will run as deterministic demos.</Banner></div>}
+      {live&&liveCap&&liveCap.ready&&<div style={{marginTop:8}}><Banner tone="ok">Live MARI ({mariMode==='wonder'?'Muse Wonder':'Muse Spark'}) will run on the next mission.</Banner></div>}
     </Card>
     <Card title="Usage policy" sub="Configured limits in this build. Buckets are per-process memory, not shared quotas.">
       <Rows items={[

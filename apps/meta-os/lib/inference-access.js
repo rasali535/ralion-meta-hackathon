@@ -68,3 +68,46 @@ export function settleInferenceUsage(receipt,{requestId=null,ok=true,ledger=glob
   if(ok)return ledger.confirm(receipt,{requestId});
   return ledger.release(receipt);
 }
+export const LIVE_CAPABILITY_REASONS=Object.freeze(['LIVE_READY','KEY_MISSING','LIVE_DISABLED','UNAUTHENTICATED','SESSION_REVOKED','ACCESS_NOT_CONFIGURED','BUDGET_EXHAUSTED']);
+// Read-only live-prerequisites probe for the status endpoint and the
+// Settings one-click toggle. Reports flags, key presence, authentication,
+// and per-mode budgets without consuming rate limits or reserving budget,
+// so judges can check it freely before requesting live reasoning.
+export function describeLiveCapability({presentedToken,env=process.env,ledger=globalBudgetLedger,now=Date.now()}={}){
+  const keyConfigured=!!env.MODEL_API_KEY;
+  const masterEnabled=env.META_REASONING_API_ENABLED==='true';
+  const mariEnabled=env.MARI_LIVE_REASONING_ENABLED==='true';
+  let tenant=null;
+  let authReason=null;
+  if(!presentedToken){authReason='UNAUTHENTICATED';}
+  else if(isSessionRevoked(presentedToken)){authReason='SESSION_REVOKED';}
+  else{
+    const isDemo=String(presentedToken).startsWith('v2.demo.')||String(presentedToken).startsWith('v2.org_demo.');
+    const secret=env.META_DEMO_TOKEN_SECRET||(isDemo?getFallbackDemoSecret():undefined);
+    try{
+      tenant=tenantContext(verifyAccessToken(presentedToken,{staticToken:env.META_REASONING_ACCESS_TOKEN,hmacSecret:secret,now}));
+    }catch(e){
+      authReason=String(e&&e.message)==='AUTH_NOT_CONFIGURED'?'ACCESS_NOT_CONFIGURED':'UNAUTHENTICATED';
+    }
+  }
+  let budget=null;
+  if(tenant){
+    const key=tenantBudgetKey(tenant.organizationId,tenant.workspaceId);
+    const slim=r=>({allowed:r.allowed===true,remainingUnits:r.remainingUnits,dailyLimit:r.dailyLimit});
+    budget={spark:slim(ledger.checkBudget(key,{model:'spark',now})),wonder:slim(ledger.checkBudget(key,{model:'wonder',now}))};
+  }
+  let reason='LIVE_READY';
+  if(!keyConfigured)reason='KEY_MISSING';
+  else if(!masterEnabled||!mariEnabled)reason='LIVE_DISABLED';
+  else if(authReason)reason=authReason;
+  else if(budget&&!budget.spark.allowed&&!budget.wonder.allowed)reason='BUDGET_EXHAUSTED';
+  return {
+    keyConfigured,masterEnabled,mariEnabled,
+    authenticated:tenant!==null,
+    organizationId:tenant?tenant.organizationId:null,
+    workspaceId:tenant?tenant.workspaceId:null,
+    budget,
+    ready:reason==='LIVE_READY',
+    reason,
+  };
+}

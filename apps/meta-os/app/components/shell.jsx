@@ -142,8 +142,10 @@ export default function Shell(){
   },[theme]);
 
   useEffect(()=>{
-    fetch('/api/meta/status').then(r=>r.json()).then(setMetaStatus).catch(()=>setMetaStatus(null));
-  },[]);
+    const headers={};
+    if(token)headers['x-meta-demo-access']=token;
+    fetch('/api/meta/status',{credentials:'include',headers}).then(r=>r.json()).then(setMetaStatus).catch(()=>setMetaStatus(null));
+  },[token,session?.authenticated]);
 
   useEffect(()=>{
     checkSession().then(s=>{
