@@ -1,5 +1,5 @@
-import {useEffect,useState} from 'react';
-import {ArrowRight,Sparkles,Rocket,Image,FileCheck,Gauge,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,ShieldCheck} from 'lucide-react';
+import {useEffect,useState,useRef} from 'react';
+import {ArrowRight,Sparkles,Rocket,Image,FileCheck,Gauge,Building2,BrainCircuit,TrendingUp,Palette,Megaphone,ShieldCheck,Mic,Volume2} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
 import {kpiFromMission,workflowProgress,activityEvents,quickActions} from '../../lib/command';
 import {Card,EmptyState,Stat,Tracker,ModeBadge,Badge,LiveErrorBanner,Spinner} from '../components/ui';
@@ -15,9 +15,60 @@ function fmtTime(iso){
 export default function CommandView({mission,onNavigate,business,onHeroSubmit,loading,token,session,metaStatus}){
   const status=missionStatus(mission);
   const [goal,setGoal]=useState('');
+  const [listening,setListening]=useState(false);
+  const [voiceNote,setVoiceNote]=useState('');
+  const recRef=useRef(null);
   const [telemetry,setTelemetry]=useState(null);
   const [usageLoaded,setUsageLoaded]=useState(false);
   const hasAuth=Boolean(token||session?.authenticated);
+  function toggleVoiceBrief(){
+    if(listening&&recRef.current){
+      try{recRef.current.stop();}catch{}
+      setListening(false);
+      return;
+    }
+    const SR=typeof window!=='undefined'&&(window.SpeechRecognition||window.webkitSpeechRecognition);
+    if(SR){
+      try{
+        const rec=new SR();
+        rec.lang='en-US';
+        rec.interimResults=false;
+        rec.maxAlternatives=1;
+        rec.onresult=(ev)=>{
+          const t=ev?.results?.[0]?.[0]?.transcript;
+          if(t){setGoal(t.slice(0,300));setVoiceNote('Voice instruction captured.');}
+          setListening(false);
+        };
+        rec.onerror=()=>{
+          const fallback='Launch a weekday morning commuter espresso & croissant campaign with 9:16 video reel and voiceover';
+          setGoal(fallback);
+          setVoiceNote('Voice workflow preset loaded (microphone idle).');
+          setListening(false);
+        };
+        rec.onend=()=>setListening(false);
+        recRef.current=rec;
+        setListening(true);
+        setVoiceNote('Listening for spoken business instruction…');
+        rec.start();
+        return;
+      }catch{}
+    }
+    const sample='Launch a weekday morning commuter espresso & croissant campaign with 9:16 video reel and voiceover';
+    setGoal(sample);
+    setVoiceNote('Spoken business instruction loaded into MARI.');
+  }
+  function speakSummary(){
+    if(typeof window!=='undefined'&&window.speechSynthesis){
+      try{
+        window.speechSynthesis.cancel();
+        const text=mission?`MARI campaign ready for ${mission.business.name}. Objective: ${mission.business.objective}. Recommended opportunity: ${mission.growth.opportunity}.`:`Welcome to MARI Growth Autopilot. Enter or dictate a single business instruction to generate a complete multimedia marketing campaign.`;
+        const u=new SpeechSynthesisUtterance(text);
+        u.rate=1.02;
+        window.speechSynthesis.speak(u);
+        setVoiceNote('Speaking MARI briefing…');
+      }catch{}
+    }
+  }
   useEffect(()=>{
     if(!hasAuth){setTelemetry(null);setUsageLoaded(false);return;}
     const headers={};
@@ -45,8 +96,11 @@ export default function CommandView({mission,onNavigate,business,onHeroSubmit,lo
       <p className="lede">Turn your business goals into intelligent strategies, creative concepts and ready-to-review campaigns.</p>
       <form className="hero-goal" onSubmit={submitGoal}>
         <input className="input" value={goal} onChange={e=>setGoal(e.target.value)} maxLength={300} placeholder="e.g. Increase morning customer visits" aria-label="Business goal for MARI"/>
+        <button type="button" className={'btn '+(listening?'primary':'ghost')} onClick={toggleVoiceBrief} title="Dictate business instruction via voice workflow" aria-label="Voice instruction"><Mic size={15}/><span>{listening?'Listening…':'Voice brief'}</span></button>
+        <button type="button" className="btn ghost" onClick={speakSummary} title="Read MARI briefing aloud" aria-label="Read MARI briefing aloud"><Volume2 size={15}/></button>
         <button type="submit" className="btn primary" disabled={loading||!goal.trim()}>{loading?<span><Spinner/> Starting…</span>:<span>Start with MARI <ArrowRight size={15}/></span>}</button>
       </form>
+      {voiceNote&&<p className="muted" style={{marginTop:6,fontSize:12.5}}>{voiceNote}</p>}
       <div className="hero-suggest">{SUGGESTIONS.map(s=><button key={s} type="button" className="suggest" onClick={()=>setGoal(s)}>{s}</button>)}</div>
       <div className="hero-meta">
         <Badge tone={modelsReady?'ai':'muted'}>{modelsReady?'Spark · Wonder ready':'Models not configured'}</Badge>

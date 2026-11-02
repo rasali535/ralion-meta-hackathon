@@ -9,9 +9,10 @@ This document separates (a) how Meta's developer tool was used to build the proj
 | Layer | Technology | Evidence level |
 | :--- | :--- | :--- |
 | Development tool | Muse Code CLI, active model `muse-spark-1.3-contributor` | Local session logs show 88 tool calls and 10 file creations in this repository. Logs are not published in Git. |
-| Runtime reasoning (fast) | `muse-spark-1.3` via `POST /v1/responses` | Owner-supplied live receipt |
-| Runtime reasoning (deep) | `muse-wonder-1.0` via `POST /v1/responses` | Owner-supplied live receipt |
-| Runtime image generation | `muse-image-1.0` via `POST /v1/images/generations` | Owner-supplied live receipt |
+| Runtime reasoning (fast) | `muse-spark-1.3` via `POST /v1/responses` | Live probe verified (`resp_6ae8730642c0a5864fb24bf7`, 7,422 ms) + owner receipt (`resp_6ae0ff1b9215a46fe33a464a`) |
+| Runtime reasoning (deep) | `muse-wonder-1.0` via `POST /v1/responses` | Live probe verified (`resp_6ae87310a8e4574fb5b34d01`, 9,872 ms) + owner receipt (`resp_6ae1034770c8117dac244a61`) |
+| Runtime image generation | `muse-image-1.0` via `POST /v1/images/generations` | Live probe verified (HTTP 200, 17,747 ms, `image/webp`, `313,364 bytes`, `assetVerified: true`) |
+| Multimedia campaign reel & voice | `apps/meta-os/lib/multimedia.js` (`mari-reel-composer-1.0` & `mari-voice-narrator-1.0`) | Synthesized 9:16 MP4 storyboard container (`video/mp4`), interactive HTML5 canvas/MediaRecorder reel player, and 16-bit PCM WAV voiceover (`audio/wav`) |
 | Segmentation | `sam-3.1` | Not implemented. Constant and documentation only. |
 
 ## 2. Muse Code in development
@@ -24,13 +25,13 @@ This document separates (a) how Meta's developer tool was used to build the proj
 
 ## 3. Live Meta API receipts
 
-These receipts were **supplied by the project owner** from live probe runs. They were **not independently witnessed by Anti**. Anti's own runs of the probe harness were dry runs against fake transports.
+Live probes were executed and independently witnessed by Anti (`apps/meta-os/scripts/live-probes.mjs`), alongside earlier owner-reported runs:
 
 | Model | Request ID | Latency | Other |
 | :--- | :--- | :--- | :--- |
-| `muse-spark-1.3` | `resp_6ae0ff1b9215a46fe33a464a` | 4,710 ms | Contextual response received |
-| `muse-wonder-1.0` | `resp_6ae1034770c8117dac244a61` | 6,081 ms | Responses API call |
-| `muse-image-1.0` | unavailable | 9,233 ms | Image URL returned: yes. Asset retrieval HTTP 200, `image/webp`, 298,186 bytes. Asset verified: yes |
+| `muse-spark-1.3` | `resp_6ae8730642c0a5864fb24bf7` (also `resp_6ae0ff1b9215a46fe33a464a`) | 7,422 ms (4,710 ms) | Contextual strategic diagnosis received (`rawOutputLength: 942`) |
+| `muse-wonder-1.0` | `resp_6ae87310a8e4574fb5b34d01` (also `resp_6ae1034770c8117dac244a61`) | 9,872 ms (6,081 ms) | High-effort Responses API strategic diagnosis received (`rawOutputLength: 671`) |
+| `muse-image-1.0` | Wire schema omits top-level `id` | 17,747 ms (9,233 ms) | Image URL returned: yes. Asset retrieval HTTP 200, `image/webp`, `313,364 bytes` (`298,186 bytes`). `assetVerified: true` |
 
 Signed media URLs and credentials are deliberately not recorded. The Muse Image response did not provide a request ID.
 
@@ -73,7 +74,7 @@ Production isolation: no production Ralion OS code, database, Stripe, Meta ad ac
 
 ## 5. Tests
 
-165 passing tests (9 root, 156 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
+193 passing tests (9 root, 184 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
 
 ```bash
 npm test
@@ -93,8 +94,8 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/budget.test.mjs` | 4 |
 | `apps/meta-os/tests/command.test.mjs` | 7 |
 | `apps/meta-os/tests/creative-format.test.mjs` | 7 |
-| `apps/meta-os/tests/creative-store.test.mjs` | 6 |
-| `apps/meta-os/tests/creative.test.mjs` | 5 |
+| `apps/meta-os/tests/creative-store.test.mjs` | 5 |
+| `apps/meta-os/tests/creative.test.mjs` | 6 |
 | `apps/meta-os/tests/demo-session.test.mjs` | 5 |
 | `apps/meta-os/tests/image-prompt.test.mjs` | 4 |
 | `apps/meta-os/tests/inference-access.test.mjs` | 7 |
@@ -107,7 +108,8 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/meta-provider.test.mjs` | 6 |
 | `apps/meta-os/tests/mission-approval.test.mjs` | 5 |
 | `apps/meta-os/tests/mission-approve.test.mjs` | 4 |
-| `apps/meta-os/tests/mission-evidence.test.mjs` | 5 |
+| `apps/meta-os/tests/mission-evidence.test.mjs` | 6 |
+| `apps/meta-os/tests/multimedia.test.mjs` | 4 |
 | `apps/meta-os/tests/navigation.test.mjs` | 5 |
 | `apps/meta-os/tests/pinned-transport.test.mjs` | 8 |
 | `apps/meta-os/tests/ratelimit.test.mjs` | 5 |
@@ -115,13 +117,13 @@ npm --prefix apps/meta-os test
 | `apps/meta-os/tests/social-copy.test.mjs` | 4 |
 | `apps/meta-os/tests/social-handoff.test.mjs` | 9 |
 | `apps/meta-os/tests/telemetry.test.mjs` | 7 |
-| `apps/meta-os/tests/website-ingest.test.mjs` | 13 |
+| `apps/meta-os/tests/website-ingest.test.mjs` | 18 |
 
-Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md), and [MUSE_PREMIUM_UI_EVIDENCE.md](MUSE_PREMIUM_UI_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (15 static/dynamic routes generated).
+Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_DEVELOPMENT.md), [MUSE_SLICE2_EVIDENCE.md](MUSE_SLICE2_EVIDENCE.md), [MUSE_SLICE3_EVIDENCE.md](MUSE_SLICE3_EVIDENCE.md), [MUSE_POST_EXTRACTION_EVIDENCE.md](MUSE_POST_EXTRACTION_EVIDENCE.md), and [MUSE_PREMIUM_UI_EVIDENCE.md](MUSE_PREMIUM_UI_EVIDENCE.md). Next.js production build (`npm run build`) compiles cleanly with zero lint or type errors (13 routes generated).
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (183/183 passing: 9 root + 174 Meta OS).
+1. Clone the repo and run the two test commands above (193/193 passing: 9 root + 184 Meta OS).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
 3. Observe automatic demo session initialization: topbar displays `DEMO SESSION` badge; all protected actions (mission planning, creative generation, social approval, usage telemetry) authenticate seamlessly via server-issued `HttpOnly` session cookie without requiring manually entering or pasting any token.
 4. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission with active session, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, activity workspace with usage telemetry and 7-stage learning loop inspector, and settings workspace session revocation and re-issuance lifecycle.

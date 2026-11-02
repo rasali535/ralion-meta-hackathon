@@ -130,8 +130,8 @@ The 8-beat narrative directly mirrors the verified production proof in `rasali53
   2. Show verified audit trail: Execution status is permanently locked to `NOT_CONNECTED`.
   3. Close with the learning loop summary.
 - **Voiceover:**
-  > *"If any prompt or hashtag is altered post-approval, the plan hash diverges and the approval is instantly invalidated. With 128 automated regression tests and complete browser verification, Ralion Meta AI Edition proves enterprise AI can be sovereign, safe, and built for emerging businesses worldwide."*
-- **Visual Highlight:** Green test badge (`128 passing`), verified audit ledger, and clean system state.
+  > *"If any prompt or hashtag is altered post-approval, the plan hash diverges and the approval is instantly invalidated. With 193 automated regression tests and complete browser verification, Ralion Meta AI Edition proves enterprise AI can be sovereign, safe, and built for emerging businesses worldwide."*
+- **Visual Highlight:** Green test badge (`193 passing`), verified audit ledger, and clean system state.
 
 ---
 

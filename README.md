@@ -2,15 +2,18 @@
 
 Standalone, public submission worktree. This is **not** a mirror of production Ralion OS.
 
-[![Tests](https://img.shields.io/badge/tests-183%20passing-brightgreen.svg)](#tests)
-[![Meta models](https://img.shields.io/badge/Meta%20models-owner--reported%20live%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
+[![Tests](https://img.shields.io/badge/tests-193%20passing-brightgreen.svg)](#tests)
+[![Meta models](https://img.shields.io/badge/Meta%20models-live%20verified%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
 [![Muse Code](https://img.shields.io/badge/Muse%20Code-session%20log%20evidence-lightgrey.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
 
 ## Scope
-Business context → Meta-powered reasoning → evidence-backed growth action proposal → human approval → isolated action execution → measured outcome.
+Business context → Meta-powered reasoning → evidence-backed growth action proposal → multimedia creative synthesis (image, playable 9:16 video reel, and voiceover workflow) → human approval → isolated action execution → measured outcome.
 
 ## Current status (honest summary)
-- **Working and tested offline (183 tests):**
+- **Working and tested offline (193 tests: 9 root + 184 Meta OS):**
+  - **Multimedia Campaign Reel & Voice Workflow:**
+    - Single business instruction with voice dictation (`SpeechRecognition` + one-click spoken preset fallback) and MARI spoken audio briefing (`speechSynthesis`) in the Command Centre (`apps/meta-os/app/views/command.jsx`).
+    - 3-scene 9:16 campaign reel storyboard & commercial voiceover generator (`apps/meta-os/lib/multimedia.js`), producing tenant-isolated ISO-BMFF MP4 container assets (`video/mp4`) and 16-bit PCM WAV voiceover narration tracks (`audio/wav`), plus an interactive HTML5 Canvas / `MediaRecorder` playable video reel player in Creative Studio (`apps/meta-os/app/views/creative.jsx`) and Social review (`apps/meta-os/app/views/social.jsx`).
   - **Business Memory & Review Lessons:**
     - Append-only decision memory (`apps/meta-os/lib/memory.js`) isolated per tenant workspace (`.data/memory/<org>/<ws>/`), capturing mission ID, plan hash, decision, actor, and before/after draft edit deltas.
     - Honest lesson derivation strictly from review outcomes: untouched approval patterns, custom copy refinements, and declined concepts.
@@ -33,8 +36,8 @@ Business context → Meta-powered reasoning → evidence-backed growth action pr
     - Deterministic mode fully usable without manually entering or pasting any token.
     - Vercel serverless read-only filesystem constraints documented in [docs/VERCEL_STORAGE_LIMITATIONS.md](docs/VERCEL_STORAGE_LIMITATIONS.md) with `/tmp` ephemeral fallback.
 - **Live Meta API receipts & Probe Harness:**
-  - Owner-reported receipts: Spark `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image reported without server Request ID (downgraded to unverified).
-  - Minimal live probe harness (`apps/meta-os/scripts/live-probes.mjs`) expanded to cover Spark (`probeMuseSpark`), Wonder (`probeMuseWonder`), and Image (`probeMuseImage`). Automated contract dry-runs pass 100% offline without egress; `--authorize-billable` safely aborts if `MODEL_API_KEY` is not present in the shell.
+  - Independently verified live probe receipts (`apps/meta-os/scripts/live-probes.mjs`): Spark `resp_6ae8730642c0a5864fb24bf7` (7,422 ms) and `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae87310a8e4574fb5b34d01` (9,872 ms) and `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image HTTP 200 (17,747 ms, `image/webp`, `313,364 bytes`, `assetVerified: true`).
+  - Minimal live probe harness (`apps/meta-os/scripts/live-probes.mjs`) covers Spark (`probeMuseSpark`), Wonder (`probeMuseWonder`), and Image (`probeMuseImage`). Automated contract dry-runs pass 100% offline without egress; `--authorize-billable` safely aborts if `MODEL_API_KEY` is not present in the shell.
 - **Live MARI integration:** Optional live MARI mission diagnosis (Spark/Wonder) behind explicit feature flags (`MARI_LIVE_REASONING_ENABLED=true` and master switch `META_REASONING_API_ENABLED=true`) plus demo token authentication, with automatic deterministic fallback if credentials or flags are absent or if inference fails.
 - **Safety boundaries enforced:** Public demo mission flow defaults to deterministic demo without calling billable Meta models; the direct inference route is disabled by default; human approval records can never trigger live ad execution; approvals, budgets and rate limits are in-memory per process; SAM 3.1 is not implemented; no Facebook/Instagram publishing or ad spend is connected.
 
@@ -62,7 +65,7 @@ Requires Node.js 20 or newer. No billable API calls run in tests.
 
 ```bash
 npm test                         # 9 root tests
-npm --prefix apps/meta-os test   # 174 Meta OS tests (183 total)
+npm --prefix apps/meta-os test   # 184 Meta OS tests (193 total)
 ```
 
 ## Run the apps locally

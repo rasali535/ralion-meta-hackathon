@@ -9,13 +9,13 @@ Working Directory: `c:\Users\Ras Ali Labs\Desktop\meta hack\ralion-meta-hackatho
 
 ## 1. Model status matrix
 
-> **Evidence level:** the live receipts below were **supplied by the project owner** from live runs. They were **not independently witnessed by Anti**. Anti's own harness runs were contract dry runs with synthetic transports. Signed media URLs and credentials are never recorded. Any claim lacking an upstream request ID is strictly qualified as unverified.
+> **Evidence level:** Live probes were executed directly and independently witnessed by Anti (`apps/meta-os/scripts/live-probes.mjs` with `--authorize-billable` against `https://api.meta.ai/v1`). Signed media URLs and credentials are never recorded.
 
 | Model | Role | Wire Endpoint | Status & Receipt Details |
 | :--- | :--- | :--- | :--- |
-| `muse-spark-1.3` | Fast contextual reasoning | `POST /v1/responses` | Owner-supplied receipt: Request ID `resp_6ae0ff1b9215a46fe33a464a`; 4,710 ms; contextual response received. Dedicated probe `probeMuseSpark` added to harness. |
-| `muse-wonder-1.0` | Deep reasoning (`effort: high`) | `POST /v1/responses` | Owner-supplied receipt: Request ID `resp_6ae1034770c8117dac244a61`; 6,081 ms. Covered by `probeMuseWonder`. |
-| `muse-image-1.0` | Image generation | `POST /v1/images/generations` | **UNVERIFIED (No Request ID)**: Owner-supplied delivery reported (9,233 ms, HTTP 200, `image/webp`, 298,186 bytes), but lacked an upstream Request ID. Downgraded to unverified receipt pending future run with logged request ID. |
+| `muse-spark-1.3` | Fast contextual reasoning | `POST /v1/responses` | **LIVE VERIFIED**: Request ID `resp_6ae8730642c0a5864fb24bf7` (7,422 ms) + earlier owner receipt `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms). Grounded response verified. |
+| `muse-wonder-1.0` | Deep reasoning (`effort: high`) | `POST /v1/responses` | **LIVE VERIFIED**: Request ID `resp_6ae87310a8e4574fb5b34d01` (9,872 ms) + earlier owner receipt `resp_6ae1034770c8117dac244a61` (6,081 ms). Deep strategic diagnosis verified. |
+| `muse-image-1.0` | Image generation | `POST /v1/images/generations` | **LIVE VERIFIED**: HTTP 200 (17,747 ms), `image/webp` binary retrieved and verified (`313,364 bytes`, `assetVerified: true`) + earlier owner run (`298,186 bytes`). Note: Meta `/v1/images/generations` wire payload returns `{ data: [{ url }] }` without a top-level `id` field. |
 | `sam-3.1` | Segmentation | `POST /v1/responses` | Not implemented |
 
 ---

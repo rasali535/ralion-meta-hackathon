@@ -97,7 +97,11 @@ export default function SocialView({mission,onNavigate,token,session,assets,onAp
   const missionAssets=(m.creative&&m.creative.assets)||[];
   const urlFor=id=>{const hit=(assets||[]).find(e=>e&&e.asset&&e.asset.assetId===id);return hit?hit.url:null;};
   const planHash=m.approval&&m.approval.planHash?m.approval.planHash:'';
-  const firstPreview=missionAssets.length>0?urlFor(missionAssets[0].assetId):null;
+  const imageAssets=missionAssets.filter(a=>String(a.mimeType||'').startsWith('image/'));
+  const voiceAssets=missionAssets.filter(a=>a.mimeType==='audio/wav');
+  const videoAssets=missionAssets.filter(a=>a.mimeType==='video/mp4');
+  const firstPreview=imageAssets.length>0?urlFor(imageAssets[0].assetId):(missionAssets.length>0?urlFor(missionAssets[0].assetId):null);
+  const firstVoiceUrl=voiceAssets.length>0?urlFor(voiceAssets[0].assetId):null;
   const editedAfter=m.approval&&m.approval.editedAfterApproval===true;
 
   return <div className="page">
@@ -107,7 +111,14 @@ export default function SocialView({mission,onNavigate,token,session,assets,onAp
     {editedAfter&&<Banner tone="warn">Drafts were edited after review. The previous approval no longer applies — re-approval is required.</Banner>}
     <div className="draft-grid">{m.social.map(s=><div key={s.channel}><DraftPost draft={s} businessName={m.business.name} previewUrl={firstPreview} onEdit={()=>setEditingChannel(s.channel)} editing={editingChannel===s.channel} onSaveEdit={saveEdit} onCancelEdit={()=>setEditingChannel(null)}/><div style={{marginTop:8}}><HandoffChips draft={s} planHash={planHash}/></div></div>)}</div>
     <Card title="Creative previews" sub="Generated assets attached to this mission, if any.">
-      {missionAssets.length===0?<p className="muted">No creative assets yet. Generate them in Creative Studio.</p>:<div className="thumb-row">{missionAssets.map(a=>{const url=urlFor(a.assetId);return url?<img key={a.assetId} src={url} alt="Mission creative preview" loading="lazy"/>:<span key={a.assetId} className="chip">Preview expired</span>;})}</div>}
+      {missionAssets.length===0?<p className="muted">No creative assets yet. Generate them in Creative Studio.</p>:<>
+        <div className="thumb-row">{imageAssets.map(a=>{const url=urlFor(a.assetId);return url?<img key={a.assetId} src={url} alt="Mission creative preview" loading="lazy"/>:<span key={a.assetId} className="chip">Preview expired</span>;})}</div>
+        {(videoAssets.length>0||voiceAssets.length>0)&&<div className="chip-row" style={{marginTop:10}}>
+          {videoAssets.map(v=><span key={v.assetId} className="chip">9:16 Video Reel attached ({v.bytes} bytes)</span>)}
+          {voiceAssets.map(au=><span key={au.assetId} className="chip">Voiceover WAV attached ({au.bytes} bytes)</span>)}
+        </div>}
+        {firstVoiceUrl&&<div style={{marginTop:10}}><audio controls src={firstVoiceUrl} style={{width:'100%',maxWidth:420,height:36}}/></div>}
+      </>}
     </Card>
     <Card title="Human approval" sub="Approvals cover these exact drafts and creatives — any change invalidates them.">
       {decided&&!editedAfter?<Banner tone={approved?'ok':'error'}>{approved?'Approved':'Rejected'} by {m.approval.actor?m.approval.actor.id+' ('+m.approval.actor.role+')':'unknown'} · Scope: local drafts only · {m.approval.approvedAt||''}</Banner>:<>

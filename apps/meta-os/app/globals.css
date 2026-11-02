@@ -288,8 +288,8 @@ button{font:inherit;color:inherit}
 .thumb-row img{width:88px;height:88px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 .chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{font-size:11px;font-weight:600;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--ink-2)}
-@media (max-width:1080px){.asset-grid{grid-template-columns:1fr 1fr}}
-@media (max-width:640px){.asset-grid{grid-template-columns:1fr}.approval-grid{grid-template-columns:1fr}}
+@media (max-width:1080px){.asset-grid{grid-template-columns:1fr 1fr}.reel-studio{grid-template-columns:1fr !important}}
+@media (max-width:640px){.asset-grid{grid-template-columns:1fr}.approval-grid{grid-template-columns:1fr}.reel-studio{grid-template-columns:1fr !important}}
 
 .session-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.06em;background:var(--acc-tint,#1d3b38);color:var(--acc,#3ddbd9);border:1px solid rgba(61,219,217,.3);text-transform:uppercase}
 @media (max-width:640px){.session-badge{display:none}}

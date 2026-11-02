@@ -221,7 +221,7 @@ export default function Shell(){
       if(!m||m.missionId!==missionId)return m;
       const meta=entry.asset;
       const current=(m.creative&&m.creative.assets)?m.creative.assets:[];
-      const next=[...current.filter(a=>a.assetId!==meta.assetId),{assetId:meta.assetId,prompt:meta.prompt,mimeType:meta.mimeType,bytes:meta.bytes,sha256:meta.sha256,reviewStatus:meta.reviewStatus,requestedFormat:meta.requestedFormat||null}];
+      const next=[...current.filter(a=>a.assetId!==meta.assetId),{assetId:meta.assetId,prompt:meta.prompt,mimeType:meta.mimeType,bytes:meta.bytes,sha256:meta.sha256,reviewStatus:meta.reviewStatus,requestedFormat:meta.requestedFormat||null,storyboard:meta.storyboard||null,voiceScript:meta.voiceScript||null,posterAssetId:meta.posterAssetId||null}];
       return {...m,creative:{...(m.creative||{}),assets:next,generated:true}};
     });
   }

@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {checkInferenceAccess,reserveInferenceUsage,settleInferenceUsage} from '../../../../lib/inference-access';
-import {creativeConfig,generateCreativeAsset} from '../../../../lib/creative';
+import {creativeConfig,generateCreativeAsset,generateMultimediaAsset} from '../../../../lib/creative';
 import {signAssetUrl} from '../../../../lib/asset-url';
 import {fetchPinnedMedia} from '../../../../lib/website';
 import {recordModelUsage} from '../../../../lib/telemetry';
@@ -34,6 +34,18 @@ export async function POST(req){
     if(raw.length>8000)return NextResponse.json({error:'Request too large'},{status:413});
     body=JSON.parse(raw);
   }catch{return NextResponse.json({error:'Invalid JSON'},{status:400});}
+  const kind=body&&typeof body.kind==='string'?body.kind:'image';
+  if(kind==='video'||kind==='voice'){
+    try{
+      const {metadata}=await generateMultimediaAsset({tenant:{organizationId:access.organizationId,workspaceId:access.workspaceId},kind,brief:body.brief,script:body.script,businessName:body.businessName,businessIndustry:body.businessIndustry,objective:body.objective,audience:body.audience,posterAssetId:body.posterAssetId,confirm:body.confirm,missionId:body.missionId,format:body.format,storeRoot:cfg.storageDir});
+      const signed=signAssetUrl({organizationId:access.organizationId,workspaceId:access.workspaceId,assetId:metadata.assetId,hmacSecret:assetSecret});
+      return NextResponse.json({asset:metadata,url:signed.url,expiresAt:new Date(Number(signed.exp)).toISOString(),remainingBudget:access.remainingBudget},{headers:{'cache-control':'no-store'}});
+    }catch(e){
+      const code=String(e&&e.message||'');
+      if(/^(CREATIVE_|IMAGE_|ASSET_)/.test(code))return NextResponse.json({error:code.slice(0,80)},{status:400});
+      return NextResponse.json({error:'Multimedia synthesis failed'},{status:500});
+    }
+  }
   let receipt;
   try{
     receipt=reserveInferenceUsage({organizationId:access.organizationId,workspaceId:access.workspaceId,mode:'image'});

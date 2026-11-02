@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import {
   recordDecisionMemory,
   listDecisionMemories,
@@ -52,7 +51,11 @@ test('computeDraftEdits detects before/after caption and CTA modifications', () 
 });
 
 test('recordDecisionMemory appends decisions and enforces tenant isolation', () => {
-  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ralion-memory-test-'));
+  // Project-local tmp (same pattern as creative-store.test.mjs): works in
+  // sandboxed/CI environments where os.tmpdir() may not be writable.
+  const tmpRoot = path.join(import.meta.dirname, '.tmp', `memory-test-${process.pid}`);
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
+  fs.mkdirSync(tmpRoot, { recursive: true });
   process.env.MEMORY_STORAGE_DIR = tmpRoot;
 
   try {
