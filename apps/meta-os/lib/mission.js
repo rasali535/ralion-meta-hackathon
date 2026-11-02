@@ -2,6 +2,7 @@
 import {verifyApprovalRecord,recordHumanApproval} from './approval.js';
 import {loadCreativeAsset} from './creative-store.js';
 import {buildChannelDrafts} from './social-copy.js';
+import {buildMultimediaCampaignPlan} from './multimedia.js';
 export const MISSION_SCHEMA_VERSION='1.2';
 export function missionInput(input){
   const name=String(input?.name||input?.businessName||'').trim().slice(0,100);
@@ -47,10 +48,11 @@ export function planMission(input,options={}){
   // measured confidence or classification result.
   const growth={category:'MARKETING_ACQUISITION',opportunity:'Test a focused campaign for '+f.audience,reason:'The supplied goal suggests testing customer acquisition; this is a hypothesis, not an observed business diagnosis.',objective:f.objective,measurement:'Track qualified enquiries or attributed visits after authorized execution',results:null};
   const social=buildChannelDrafts({business:base,growth},opts).map((d,i)=>({channel:d.channel,copy:i===0?'Discover '+f.name+' — '+f.objective+'.':'Meet '+f.name+'. Explore what makes us different.',caption:d.caption,cta:d.cta,audience:d.audience,hashtags:d.hashtags,grounding:d.grounding,status:'DRAFT_ONLY'}));
+  const multimedia=buildMultimediaCampaignPlan({business:base,growth});
   return {schemaVersion:MISSION_SCHEMA_VERSION,missionId,createdAt:new Date().toISOString(),status:'AWAITING_HUMAN_REVIEW',provider:'DETERMINISTIC_DEMO_NOT_META_AI',business:base,
   evidence:{websiteRetrieved:!!site,websiteStatus,userFacts:f.facts?'USER_SUPPLIED_UNVERIFIED':'NOT_PROVIDED',campaignMetrics:'NOT_AVAILABLE',site},
   growth,
-  creative:{brief:'Design an on-brand concept for '+f.name+' directed at '+f.audience+'. Verify actual brand assets before production.',assets:[],generated:false},
+  creative:{brief:'Design an on-brand concept for '+f.name+' directed at '+f.audience+'. Verify actual brand assets before production.',assets:[],generated:false,multimedia},
   social,
   approval:{status:'NOT_REQUESTED',actor:null},
   execution:{status:'NOT_CONNECTED',receipt:null},

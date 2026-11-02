@@ -429,6 +429,29 @@ async function runBrowserAcceptance() {
       throw new Error('Regeneration banner was not displayed');
     }
 
+    // Test Multimedia Video Reel & Voice Workflow Synthesis
+    console.log('Testing Multimedia 9:16 Video Reel and Voiceover WAV synthesis...');
+    await client.evaluate(`(() => {
+      const vidBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Synthesize 9:16 Video Reel'));
+      if (vidBtn) vidBtn.click();
+    })()`);
+    await wait(800);
+    await client.evaluate(`(() => {
+      const audBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Synthesize Voiceover WAV'));
+      if (audBtn) audBtn.click();
+    })()`);
+    await wait(800);
+    await client.evaluate(`(() => {
+      const playBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Play 12s reel'));
+      if (playBtn) playBtn.click();
+    })()`);
+    await wait(600);
+    const assetCountAfterMedia = await client.evaluate(`document.querySelectorAll('.asset-card').length`);
+    console.log('Total creative assets after multimedia synthesis:', assetCountAfterMedia);
+    if (assetCountAfterMedia < 3) {
+      throw new Error('Expected image + video reel + voiceover assets in Creative Studio, found ' + assetCountAfterMedia);
+    }
+
     // 8. Social Workspace & Draft Editing & Approval Invalidation
     console.log('\n[8/12] Testing Social Workspace: Draft Posts, Editing, and Human Approval...');
     await client.evaluate(`(() => {
