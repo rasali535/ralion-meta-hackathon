@@ -61,7 +61,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
     }).then(j=>{
       if(j&&j.receipt){
         setDispatches(d=>{const cur=Array.isArray(d)?d:[];return cur.some(x=>x&&x.dispatchId===j.receipt.dispatchId)?cur:[j.receipt,...cur];});
-        if(j.deduped)setDispatchNote('Already exported — showing the existing receipt for this approval.');
+        if(j.deduped)setDispatchNote('Already exported — showing the existing receipt for this approval.');else if(j.executionError)setDispatchNote('Sandbox execution unavailable ('+j.executionError+') — receipt saved without external execution.');
       }
     }).catch(e=>setDispatchError(String((e&&e.message)||'Dispatch failed').slice(0,160))).finally(()=>setDispatchBusy(false));
   }
@@ -145,7 +145,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
         <div style={{marginTop:12}}>
           {dispatches===null?<p className="muted">Loading export receipts…</p>
           :dispatchList.length===0?<p className="muted">No exports yet — approved bytes have not left the workspace.</p>
-          :<ul className="timeline">{dispatchList.map(r=><li key={r.dispatchId}><span className="t-time">{fmtTime(r.dispatchedAt)}</span><span><strong>Receipt </strong><span className="mono">{String(r.dispatchId).slice(0,20)+'…'}</span>{' · approval → export '+fmtLatency(r.approvalLatencyMs)}{' · '+(Array.isArray(r.channels)?r.channels.length:0)+' channel(s) · '+(Array.isArray(r.assets)?r.assets.length:0)+' asset(s)'}{' · bundle '}<span className="mono">{String(r.bundleHash||'').slice(0,16)+'…'}</span></span></li>)}</ul>}
+          :<ul className="timeline">{dispatchList.map(r=><li key={r.dispatchId}><span className="t-time">{fmtTime(r.dispatchedAt)}</span><span><strong>Receipt </strong><span className="mono">{String(r.dispatchId).slice(0,20)+'…'}</span>{' · approval → export '+fmtLatency(r.approvalLatencyMs)}{' · '+(Array.isArray(r.channels)?r.channels.length:0)+' channel(s) · '+(Array.isArray(r.assets)?r.assets.length:0)+' asset(s)'}{' · bundle '}<span className="mono">{String(r.bundleHash||'').slice(0,16)+'…'}</span>{r.sandboxExecution&&r.sandboxExecution.executionId?' · sandbox ':''}{r.sandboxExecution&&r.sandboxExecution.executionId&&<span className="mono">{String(r.sandboxExecution.executionId).slice(0,20)+'…'}</span>}</span></li>)}</ul>}
         </div>
       </>}
     </Card>
