@@ -55,7 +55,8 @@ const STARTER_BUSINESS={
   website:'https://example.org',
   audience:'Local morning commuters and remote workers',
   objective:'Increase morning customer visits and establish an afternoon remote-work offering',
-  facts:'Speciality roaster with two high-street locations. Strong morning trade; under-used afternoon capacity. Looking to test a focused promotion without heavy discounting.'
+  facts:'Speciality roaster with two high-street locations. Strong morning trade; under-used afternoon capacity. Looking to test a focused promotion without heavy discounting.',
+  brand:{tagline:'',tone:'friendly',hashtags:'',primaryColor:'#1F2937',accentColor:'#0EA5A6',ctaStyle:''}
 };
 
 export default function Shell(){

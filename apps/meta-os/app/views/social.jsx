@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {ArrowRight,Megaphone,Pencil} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
 import {verifySocialHandoffBinding} from '../../lib/social-handoff';
+import {buildMockPost} from '../../lib/mock-preview';
 import {Badge,Card,EmptyState,ModeBadge,Banner,LiveErrorBanner,Spinner} from '../components/ui';
 
 function HandoffChips({draft,planHash}){
@@ -46,9 +47,24 @@ function DraftPost({draft,businessName,previewUrl,onEdit,editing,onSaveEdit,onCa
       <div className="chip-row">
         <span className="chip">{(draft.grounding&&draft.grounding.source||'MISSION_DRAFT_DERIVED').replace(/_/g,' ')}</span>
         {draft.grounding&&draft.grounding.memory&&<span className="chip" title="Workspace review memory">{draft.grounding.memory}</span>}
+        {draft.grounding&&draft.grounding.brand&&<span className="chip" title="Brand kit voice">{draft.grounding.brand}</span>}
         {(draft.grounding&&draft.grounding.facts||[]).map(f=><span className="chip" key={f}>{f}</span>)}
       </div>
       <small>NOT PUBLISHED · PUBLISHING NOT CONNECTED</small>
+    </div>
+  </div>;
+}
+
+function MockPost({mock,previewUrl}){
+  const isIg=mock.platform==='instagram';
+  return <div className="post">
+    <div className="post-head"><span className={'post-ava'+(isIg?' ig':'')}>{String(mock.pageName||'?').trim().charAt(0).toUpperCase()}</span><div className="post-who"><strong>{mock.pageName}</strong><small>{mock.handle} · {isIg?'Instagram':'Facebook'} mock</small></div></div>
+    {previewUrl?<div className="post-creative"><img src={previewUrl} alt="Mock post creative" loading="lazy"/></div>:null}
+    <p className="post-body">{mock.caption}</p>
+    {mock.hashtags.length>0?<p className="muted">{mock.hashtags.join(' ')}</p>:null}
+    {mock.ctaLabel?<div className="post-cta"><span style={{color:mock.accentColor,fontWeight:600}}>{mock.ctaLabel}</span></div>:null}
+    <div className="post-foot">
+      <div className="chip-row">{mock.badges.map(b=><span className="chip" key={b}>{b}</span>)}<span className="chip">No engagement shown</span></div>
     </div>
   </div>;
 }
@@ -103,6 +119,7 @@ export default function SocialView({mission,onNavigate,token,session,assets,onAp
   const firstPreview=imageAssets.length>0?urlFor(imageAssets[0].assetId):(missionAssets.length>0?urlFor(missionAssets[0].assetId):null);
   const firstVoiceUrl=voiceAssets.length>0?urlFor(voiceAssets[0].assetId):null;
   const editedAfter=m.approval&&m.approval.editedAfterApproval===true;
+  const mockPosts=m.social.map(s=>{try{return buildMockPost({draft:s,platform:s.channel,businessName:m.business.name,brand:m.brand,assetId:imageAssets[0]?imageAssets[0].assetId:null});}catch{return null;}}).filter(Boolean);
 
   return <div className="page">
     <div className="page-head"><div className="row"><h1>Social</h1><ModeBadge status={status}/><Badge tone="draft">Draft only</Badge></div><p className="lede">Facebook and Instagram plans for {m.business.name} stay in review until a real authorized integration exists.</p></div>
@@ -110,6 +127,10 @@ export default function SocialView({mission,onNavigate,token,session,assets,onAp
     <Banner tone="warn">Nothing here is published, scheduled, or approved for publishing. Approval status: {status.approval.replace(/_/g,' ')}.</Banner>
     {editedAfter&&<Banner tone="warn">Drafts were edited after review. The previous approval no longer applies — re-approval is required.</Banner>}
     <div className="draft-grid">{m.social.map(s=><div key={s.channel}><DraftPost draft={s} businessName={m.business.name} previewUrl={firstPreview} onEdit={()=>setEditingChannel(s.channel)} editing={editingChannel===s.channel} onSaveEdit={saveEdit} onCancelEdit={()=>setEditingChannel(null)}/><div style={{marginTop:8}}><HandoffChips draft={s} planHash={planHash}/></div></div>)}</div>
+    <Card title="Mock post preview" sub="Simulated Facebook and Instagram layout for these drafts. Nothing is posted and no engagement exists.">
+      <Banner tone="info">Mock previews only — layout simulation with brand styling. Publishing stays NOT CONNECTED.</Banner>
+      {mockPosts.length===0?<p className="muted">No drafts to preview yet.</p>:<div className="draft-grid">{mockPosts.map(mock=><MockPost key={mock.platform} mock={mock} previewUrl={firstPreview}/>)}</div>}
+    </Card>
     <Card title="Creative previews" sub="Generated assets attached to this mission, if any.">
       {missionAssets.length===0?<p className="muted">No creative assets yet. Generate them in Creative Studio.</p>:<>
         <div className="thumb-row">{imageAssets.map(a=>{const url=urlFor(a.assetId);return url?<img key={a.assetId} src={url} alt="Mission creative preview" loading="lazy"/>:<span key={a.assetId} className="chip">Preview expired</span>;})}</div>

@@ -6,6 +6,8 @@ export default function BusinessView(props){
   const status=missionStatus(mission);
   const site=mission&&mission.evidence?mission.evidence.site:null;
   const hasActiveSession=Boolean(session?.authenticated||(session&&token));
+  const brand=business.brand||{};
+  const setBrand=(k,v)=>update('brand',{...brand,[k]:v});
 
   return <div className="page">
     <div className="page-head"><div className="row"><h1>Business</h1><ModeBadge status={status}/></div><p className="lede">Business context is the foundation for every mission. Public website text is retrieved server-side with safety limits.</p></div>
@@ -42,6 +44,20 @@ export default function BusinessView(props){
         {error&&<p className="error-box" role="alert">{error}</p>}
       </div>
     </form>
+    <div className="card">
+      <div className="card-head"><div><h3>Brand kit</h3><p className="card-sub">Business knowledge MARI writes with. Optional — drafts use a baseline voice without it.</p></div></div>
+      <div className="card-body">
+        <div className="form-grid">
+          <label className="field">Tagline<input className="input" value={brand.tagline||''} onChange={e=>setBrand('tagline',e.target.value)} maxLength={120} placeholder="Bold mornings daily"/></label>
+          <label className="field">Voice tone<select className="select" value={brand.tone||'friendly'} onChange={e=>setBrand('tone',e.target.value)}><option value="friendly">Friendly</option><option value="professional">Professional</option><option value="playful">Playful</option><option value="bold">Bold</option></select></label>
+          <label className="field">Hashtags<input className="input" value={brand.hashtags||''} onChange={e=>setBrand('hashtags',e.target.value)} maxLength={200} placeholder="#morningbrew #espresso"/><span className="hint">Up to 5 — used on drafts when set.</span></label>
+          <label className="field">CTA style<input className="input" value={brand.ctaStyle||''} onChange={e=>setBrand('ctaStyle',e.target.value)} maxLength={120} placeholder="Come say hi"/></label>
+          <label className="field">Primary color<input type="color" value={brand.primaryColor||'#1F2937'} onChange={e=>setBrand('primaryColor',e.target.value)}/></label>
+          <label className="field">Accent color<input type="color" value={brand.accentColor||'#0EA5A6'} onChange={e=>setBrand('accentColor',e.target.value)}/></label>
+        </div>
+        <p className="muted">Brand colors tint mock previews and future composed creative — never ad metrics.</p>
+      </div>
+    </div>
     {mission&&<Card title="Website evidence" sub={'Retrieval: '+String(mission.evidence.websiteStatus).replace(/_/g,' ')}>
       <LiveErrorBanner code={status.liveError}/>
       {site?(
