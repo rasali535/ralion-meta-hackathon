@@ -40,3 +40,24 @@ Working Directory: `c:\Users\Ras Ali Labs\Desktop\meta hack\ralion-meta-hackatho
 - **Automated test coverage**: `apps/meta-os/tests/live-probes.test.mjs` verifies contract compliance for Spark, Wonder, and Image in dry-run mode (100% pass).
 - **Harness check with `--authorize-billable`**: When run without a server-side `MODEL_API_KEY` configured in the shell, the harness safely and cleanly aborts before any network call:
   `[ABORT] --authorize-billable was passed, but MODEL_API_KEY is not configured in process.env. Set MODEL_API_KEY server-side before running.`
+
+---
+
+## 4. Modal sandbox execution receipt
+
+Observed 2026-11-02 by the operator (Anti) against the deployed executor
+(`modal/dispatch_executor.py` on Modal, `fastapi[standard]` image, deployed
+in 17.6 s):
+
+- Endpoint: `https://maplininc--ralion-dispatch-executor-execute.us-east.modal.run`
+- `dispatchId`: `dsp_aaf88c639f33724f`
+- `executionId`: `mexec_148639bd0a1647e8` (`executor: modal-sandbox`)
+- `bundleHash`: `1786e1c374b5d017d0ac9ff908ef9ab6d4b5e9b18961baf3dbd2f94800efaf1f`
+- `bundleHashVerified`: `true`, receipt `signatureVerified`: `true`
+- End-to-end sandbox latency: `5,303 ms` (cold-start provision + verify + package)
+
+The executor validates and packages only; it never publishes, schedules,
+spends, or contacts ad APIs. No credentials cross the app-to-Modal
+boundary in either direction.
+
+Independently repeated from a second operator session (Muse): `mexec_43ab1a97ff604cb8` on dispatch `dsp_48cd63c007fc1aaf` (11,421 ms via high-latency sandbox egress, bundle re-verified, signature verified).

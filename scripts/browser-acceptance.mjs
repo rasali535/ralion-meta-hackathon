@@ -276,6 +276,37 @@ async function runBrowserAcceptance() {
     await client.evaluate('document.querySelector(".theme-btn")?.click()');
     await wait(400);
 
+    // Configure Tenant Brand Kit in Business Workspace
+    console.log('Configuring Tenant Brand Kit in Business Workspace...');
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('business')).click();
+    })()`);
+    await waitForCondition(`document.querySelector(".page-head h1")?.innerText?.includes('Business')`, 15000);
+
+    // Set Voice tone to 'bold' and hashtags to '#morningbrew #espresso'
+    await client.evaluate(`(() => {
+      const toneSelect = Array.from(document.querySelectorAll('label')).find(l => l.innerText.includes('Voice tone'))?.querySelector('select');
+      if (toneSelect) {
+        toneSelect.value = 'bold';
+        toneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const tagInput = document.querySelector('input[placeholder*="#morningbrew"]');
+      if (tagInput) {
+        if (tagInput._valueTracker) tagInput._valueTracker.setValue('');
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(tagInput, '#morningbrew #espresso');
+        tagInput.dispatchEvent(new Event('input', { bubbles: true }));
+        tagInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    })()`);
+    await wait(300);
+
+    // Navigate back to Command Centre
+    await client.evaluate(`(() => {
+      Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('command')).click();
+    })()`);
+    await waitForCondition(`Boolean(document.querySelector('.hero-goal button[type="submit"]'))`, 15000);
+
     // 4. MARI Hero Submission from Command Centre
     console.log('\n[4/12] Testing MARI Hero Goal Submission...');
     // Click suggestion pill to populate goal in React state reliably
@@ -474,6 +505,32 @@ async function runBrowserAcceptance() {
 
     // Capture Screenshot 7: Social Workspace
     await client.captureScreenshot('social-1440.png');
+
+    // Verify Brand Grounding Chip and Mock Post Previews in Social Workspace
+    const brandChip = await client.evaluate(`(() => {
+      const chips = Array.from(document.querySelectorAll('.chip'));
+      return chips.map(c => c.innerText).find(t => t.includes('On-brand: bold voice')) || '';
+    })()`);
+    console.log('Brand Grounding Chip in Social:', brandChip);
+    if (!brandChip) {
+      throw new Error('Expected On-brand chip with bold voice in Social workspace drafts!');
+    }
+
+    const mockCardCheck = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Mock post preview'));
+      const text = card?.innerText || '';
+      return {
+        hasCard: Boolean(card),
+        hasSimulated: text.includes('SIMULATED PREVIEW'),
+        hasNotPublished: text.includes('NOT PUBLISHED'),
+        hasHashtags: text.includes('#morningbrew') && text.includes('#espresso'),
+        hasNoEngagement: text.includes('No engagement shown')
+      };
+    })()`);
+    console.log('Mock Post Preview Card Verification:', mockCardCheck);
+    if (!mockCardCheck.hasCard || !mockCardCheck.hasSimulated || !mockCardCheck.hasNotPublished || !mockCardCheck.hasHashtags) {
+      throw new Error('Mock post preview card missing required badges or brand hashtags: ' + JSON.stringify(mockCardCheck));
+    }
 
     // Test Inline Draft Editing on Facebook draft
     console.log('Testing inline draft editing on Facebook post...');

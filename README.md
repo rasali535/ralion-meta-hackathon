@@ -2,7 +2,7 @@
 
 Standalone, public submission worktree. This is **not** a mirror of production Ralion OS.
 
-[![Tests](https://img.shields.io/badge/tests-216%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-225%20passing-brightgreen.svg)](#tests)
 [![Meta models](https://img.shields.io/badge/Meta%20models-live%20verified%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
 [![Muse Code](https://img.shields.io/badge/Muse%20Code-session%20log%20evidence-lightgrey.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
 
@@ -10,7 +10,7 @@ Standalone, public submission worktree. This is **not** a mirror of production R
 Business context → Meta-powered reasoning → evidence-backed growth action proposal → multimedia creative synthesis (image, playable 9:16 video reel, and voiceover workflow) → human approval → isolated action execution → measured outcome.
 
 ## Current status (honest summary)
-- **Working and tested offline (216 tests: 9 root + 207 Meta OS):**
+- **Working and tested offline (225 tests: 9 root + 216 Meta OS):**
   - **Multimedia Campaign Reel & Voice Workflow:**
     - Single business instruction with voice dictation (`SpeechRecognition` + one-click spoken preset fallback) and MARI spoken audio briefing (`speechSynthesis`) in the Command Centre (`apps/meta-os/app/views/command.jsx`).
     - 3-scene 9:16 campaign reel storyboard & commercial voiceover generator (`apps/meta-os/lib/multimedia.js`), producing tenant-isolated ISO-BMFF MP4 container assets (`video/mp4`) and 16-bit PCM WAV voiceover narration tracks (`audio/wav`), plus an interactive HTML5 Canvas / `MediaRecorder` playable video reel player in Creative Studio (`apps/meta-os/app/views/creative.jsx`) and Social review (`apps/meta-os/app/views/social.jsx`).
@@ -37,6 +37,8 @@ Business context → Meta-powered reasoning → evidence-backed growth action pr
     - Vercel serverless read-only filesystem constraints documented in [docs/VERCEL_STORAGE_LIMITATIONS.md](docs/VERCEL_STORAGE_LIMITATIONS.md) with `/tmp` ephemeral fallback.
 - **Sandbox Dispatch Outbox:** Approved-only export of exact approved bytes (asset manifest plus channel copy) into signed, tenant-isolated receipts via POST /api/dispatch, idempotent per approval with plan-hash tamper rejection; receipts surface in Activity with SANDBOX EXPORT ONLY and NOT PUBLISHED badges, and the learning loop reports approval-to-export latency while publication stays NOT CONNECTED.
 - **Modal Sandbox Execution:** When MODAL_DISPATCH_URL is configured, dispatch runs the exact bundle bytes through an isolated Modal sandbox (modal/dispatch_executor.py) that re-verifies the bundle hash and packages a checks report; the returned execution id is bound into the receipt signature as independent compute evidence, with graceful fallback to the plain receipt when Modal is unreachable.
+- **Tenant Brand Kit:** Business knowledge MARI writes with (tagline, voice tone, hashtags, CTA style, brand colors) set in the Business workspace, sanitized server-side, and consumed by channel drafts with an explicit on-brand grounding label.
+- **Mock Social Previews:** Simulated Facebook and Instagram post layouts for every draft with brand styling, SIMULATED PREVIEW plus NOT PUBLISHED badges, and zero engagement metrics — layout only, never publishing.
 - **One-Click Live MARI Mode:** Settings card showing live prerequisites (server key, both inference flags, session, per-mode budgets) with a single toggle and model picker; a read-only server probe reports readiness without consuming rate limits or budget, and requesting live without prerequisites shows exactly what is missing while missions keep their deterministic fallback.
 - **Live Meta API receipts & Probe Harness:**
   - Independently verified live probe receipts (`apps/meta-os/scripts/live-probes.mjs`): Spark `resp_6ae8730642c0a5864fb24bf7` (7,422 ms) and `resp_6ae0ff1b9215a46fe33a464a` (4,710 ms); Wonder `resp_6ae87310a8e4574fb5b34d01` (9,872 ms) and `resp_6ae1034770c8117dac244a61` (6,081 ms); Muse Image HTTP 200 (17,747 ms, `image/webp`, `313,364 bytes`, `assetVerified: true`).
@@ -68,7 +70,7 @@ Requires Node.js 20 or newer. No billable API calls run in tests.
 
 ```bash
 npm test                         # 9 root tests
-npm --prefix apps/meta-os test   # 207 Meta OS tests (216 total)
+npm --prefix apps/meta-os test   # 216 Meta OS tests (225 total)
 ```
 
 ## Run the apps locally
