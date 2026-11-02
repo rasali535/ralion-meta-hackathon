@@ -121,6 +121,7 @@ async function runBrowserAcceptance() {
       APPROVAL_HMAC_SECRET: APPROVAL_SECRET,
       CREATIVE_GENERATION_ENABLED: 'true',
       META_REASONING_API_ENABLED: 'true',
+      MARI_LIVE_REASONING_ENABLED: 'false',
       MODEL_API_KEY: 'test-server-key-safe',
       MOCK_IMAGE_GENERATION: 'true',
       CREATIVE_STORAGE_DIR: '.data/creative_test',
@@ -663,8 +664,8 @@ async function runBrowserAcceptance() {
     });
     await wait(300);
 
-    // 10. Settings Workspace & Session Lifecycle
-    console.log('\n[10/12] Testing Settings Workspace & Session Lifecycle...');
+    // 10. Settings Workspace & Live MARI Mode Card & Session Lifecycle
+    console.log('\n[10/12] Testing Settings Workspace, Live MARI Mode Card, & Session Lifecycle...');
     await client.evaluate(`(() => {
       Array.from(document.querySelectorAll('.nav-item')).find(b => b.innerText.toLowerCase().includes('settings')).click();
     })()`);
@@ -677,6 +678,41 @@ async function runBrowserAcceptance() {
     console.log('Settings Demo Session Card Status:', sessionCardText.includes('Active') ? 'Active' : 'Not active');
     if (!sessionCardText.includes('Active')) {
       throw new Error('Settings card does not display active session');
+    }
+
+    // Verify Live MARI mode card prerequisites and toggle behavior
+    console.log('Testing Live MARI mode card prerequisites and one-click toggle...');
+    const liveCardInitial = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Live MARI mode'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Live MARI mode initial card:', liveCardInitial.replace(/\n/g, ' | ').slice(0, 260));
+    if (
+      !liveCardInitial.includes('LIVE DISABLED') ||
+      !liveCardInitial.includes('Configured') ||
+      !liveCardInitial.includes('100 remaining of 100') ||
+      !liveCardInitial.includes('25 remaining of 25')
+    ) {
+      throw new Error('Live MARI mode initial prerequisites or badge missing: ' + liveCardInitial);
+    }
+
+    // Toggle #live-toggle ON
+    await client.evaluate(`(() => {
+      const chk = document.querySelector('#live-toggle');
+      if (chk && !chk.checked) chk.click();
+    })()`);
+    await wait(300);
+
+    const liveCardToggledOn = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Live MARI mode'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Live MARI mode toggled ON (with missing MARI switch prerequisite):', liveCardToggledOn.replace(/\n/g, ' | '));
+    if (
+      !liveCardToggledOn.includes('LIVE REQUESTED') ||
+      !liveCardToggledOn.includes('Live requested, but Live inference flags are off on this deployment. Missions will run as deterministic demos.')
+    ) {
+      throw new Error('Live MARI mode warn banner for missing flag prerequisite did not render: ' + liveCardToggledOn);
     }
 
     // Test Revocation
@@ -693,6 +729,19 @@ async function runBrowserAcceptance() {
       return card?.innerText || '';
     })()`);
     console.log('Status after revocation:', statusAfterRevoke.includes('Not started') ? 'Revoked (Not started)' : 'Updated');
+
+    // Verify Live MARI mode card reflects unauthenticated session state while toggle is ON
+    const liveCardUnauth = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Live MARI mode'));
+      return card?.innerText || '';
+    })()`);
+    console.log('Live MARI mode card without active session:', liveCardUnauth.replace(/\n/g, ' | '));
+    if (
+      !liveCardUnauth.includes('Not authenticated') ||
+      !liveCardUnauth.includes('Start a demo session to load')
+    ) {
+      throw new Error('Live MARI mode card did not reflect unauthenticated session state: ' + liveCardUnauth);
+    }
 
     // 11. Test Session Negative Path (Protected Route Denied Without Session)
     console.log('\n[11/12] Testing Negative Path: Protected API Access without Active Session...');
@@ -732,6 +781,21 @@ async function runBrowserAcceptance() {
     if (!statusAfterReissue.includes('Active')) {
       throw new Error('Session was not re-issued cleanly');
     }
+
+    // Toggle #live-toggle OFF and verify clean reset
+    await client.evaluate(`(() => {
+      const chk = document.querySelector('#live-toggle');
+      if (chk && chk.checked) chk.click();
+    })()`);
+    await wait(300);
+    const liveCardToggledOff = await client.evaluate(`(() => {
+      const card = Array.from(document.querySelectorAll('.card')).find(c => c.querySelector('h3')?.innerText.includes('Live MARI mode'));
+      return card?.innerText || '';
+    })()`);
+    if (liveCardToggledOff.includes('LIVE REQUESTED')) {
+      throw new Error('LIVE REQUESTED badge remained after toggling #live-toggle OFF');
+    }
+    console.log('Verified Live MARI mode toggle OFF state.');
 
     // 12. Audit Console Logs & Runtime Exceptions
     console.log('\n[12/12] Console & Runtime Exception Audit...');
