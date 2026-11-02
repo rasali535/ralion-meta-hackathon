@@ -206,7 +206,7 @@ export default function Shell(){
       if(!m||!Array.isArray(m.social))return m;
       const social=m.social.map(s=>s.channel===channel?{...s,...patch,socialContract:null}:s);
       const hadDecision=m.approval&&['APPROVED','REJECTED'].includes(m.approval.status);
-      return {...m,social,approval:hadDecision?{status:'NOT_REQUESTED',actor:null,editedAfterApproval:true}:m.approval};
+      return {...m,social,approvalRecord:hadDecision?null:m.approvalRecord,approval:hadDecision?{status:'NOT_REQUESTED',actor:null,editedAfterApproval:true}:m.approval};
     });
   }
 
@@ -230,7 +230,7 @@ export default function Shell(){
     setMission(m=>{
       if(!m||m.missionId!==missionId)return m;
       const social=approvedMission&&Array.isArray(approvedMission.social)?approvedMission.social:m.social;
-      return {...m,social,approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:record.scope||'LOCAL_DRAFT_ONLY',planHash:record.planHash||'',approvalId:record.approvalId||'',approvedAt:record.approvedAt||'',verified:'server-issued'}};
+      return {...m,social,approvalRecord:record,approval:{status:record.decision==='APPROVED'?'APPROVED':'REJECTED',actor:record.actor||null,scope:record.scope||'LOCAL_DRAFT_ONLY',planHash:record.planHash||'',approvalId:record.approvalId||'',approvedAt:record.approvedAt||'',verified:'server-issued'}};
     });
   }
 

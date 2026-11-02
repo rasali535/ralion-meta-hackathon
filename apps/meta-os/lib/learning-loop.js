@@ -7,6 +7,9 @@
  * Publication is always NOT_CONNECTED and performance always
  * NOT_AVAILABLE: this build measures nothing and publishes nothing, and
  * the inspector must never invent impressions, conversions, or revenue.
+ * An optional context argument carries verified sandbox dispatch receipts
+ * for this mission; they attest that approved bytes were exported to the
+ * tenant outbox, never that anything was published or measured.
  */
 export const LEARNING_LOOP_VERSION='1.0';
 
@@ -28,10 +31,12 @@ function stableId(text){
   h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
   return (h2>>>0).toString(16).padStart(8,'0')+(h1>>>0).toString(16).padStart(8,'0');
 }
-export function buildLearningLoop(mission){
+export function buildLearningLoop(mission,context={}){
   if(!mission||typeof mission!=='object')throw new Error('LEARNING_LOOP_MISSION_REQUIRED');
   const mid=String(mission.missionId||'').trim();
   if(!mid)throw new Error('LEARNING_LOOP_MISSION_REQUIRED');
+  const ctx=context&&typeof context==='object'?context:{};
+  const dispatches=Array.isArray(ctx.dispatches)?ctx.dispatches.filter(d=>d&&typeof d==='object'&&String(d.missionId||'')===mid):[];
   const business=mission.business&&typeof mission.business==='object'?mission.business:{};
   const evidence=mission.evidence&&typeof mission.evidence==='object'?mission.evidence:{};
   const site=evidence.site&&typeof evidence.site==='object'?evidence.site:null;
@@ -72,8 +77,15 @@ export function buildLearningLoop(mission){
     },
     publication:{status:'NOT_CONNECTED',postId:null,publishedAt:null},
     performance:{status:'NOT_AVAILABLE'},
-    learning:approval.status==='APPROVED'
-      ?'Approved drafts are ready for a future authorized integration. No performance data exists until real campaigns run.'
-      :'The loop cannot learn until a human approves these drafts and real campaigns run.',
+    dispatch:{
+      status:dispatches.length>0?'SANDBOX_EXPORTED':'NOT_DISPATCHED',
+      count:dispatches.length,
+      receipts:dispatches.slice(0,12).map(d=>({dispatchId:clean(d.dispatchId,60),dispatchedAt:clean(d.dispatchedAt,40)||null,approvalLatencyMs:Number.isFinite(Number(d.approvalLatencyMs))?Number(d.approvalLatencyMs):null,bundleHash:clean(d.bundleHash,128)||null})),
+    },
+    learning:dispatches.length>0
+      ?'Approved drafts were exported to the tenant sandbox outbox ('+dispatches.length+' receipt(s), nothing published). No performance data exists until real campaigns run.'
+      :(approval.status==='APPROVED'
+        ?'Approved drafts are ready for a future authorized integration. No performance data exists until real campaigns run.'
+        :'The loop cannot learn until a human approves these drafts and real campaigns run.'),
   };
 }
