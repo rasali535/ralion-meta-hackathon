@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Activity,ArrowRight} from 'lucide-react';
 import {missionStatus,stepState,WORKFLOW_STEPS} from '../../lib/navigation';
 import {buildLearningLoop} from '../../lib/learning-loop';
+import {buildPublicationBriefing} from '../../lib/publication-briefing';
 import {telemetrySummary,guidanceFor} from '../../lib/command';
 import {Badge,Card,Rows,EmptyState,ModeBadge,ProgressBar,ModelReadiness,LiveErrorBanner} from '../components/ui';
 
@@ -83,6 +84,8 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
   const dispatchList=Array.isArray(dispatches)?dispatches:[];
   let loop=null;
   try{loop=buildLearningLoop(m,{dispatches:dispatchList});}catch{loop=null;}
+  let briefing=null;
+  try{briefing=buildPublicationBriefing(m,{dispatches:dispatchList});}catch{briefing=null;}
   const events=[
     {t:fmtTime(m.createdAt),label:'Mission created',detail:'Mission '+String(m.missionId).slice(0,8)+' · '+String(m.provider).replace(/_/g,' ')},
     {t:fmtTime(m.createdAt),label:'Website evidence',detail:String(m.evidence.websiteStatus).replace(/_/g,' ')+(status.hasEvidence?' · '+String(m.evidence.site.wordCount)+' words, hash verified':'' )},
@@ -149,6 +152,16 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
         </div>
       </>}
     </Card>
+    {briefing&&<Card title="Publication briefing" sub="MARI rollout readout for these drafts. Planning only — nothing here publishes.">
+      <div className="row" style={{marginBottom:10}}>
+        <Badge tone={briefing.status==="READY_FOR_CONNECTOR"?"ok":"warn"}>{briefing.status.replace(/_/g," ")}</Badge>
+        <Badge tone="muted">NOT PUBLISHED</Badge>
+        <Badge tone="muted">Blocked by {briefing.blockedBy.join(", ").replace(/_/g," ")}</Badge>
+      </div>
+      <p className="muted">{briefing.summary}</p>
+      {briefing.channels.length===0?<p className="muted">No channel drafts to brief yet.</p>:<div style={{marginTop:12}}><Rows items={briefing.channels.map(c=>({k:"Step "+c.step+" · "+c.channel,v:c.caption+(c.hashtags.length>0?" "+c.hashtags.join(" "):"")+(c.hasCta?" · CTA set":" · no CTA")+(c.hasContract?" · contract":"")}))}/></div>}
+      <div style={{marginTop:12}}><Rows items={briefing.checklist.map(c=>({k:c.label,v:c.state==="done"?"Done":"Pending"}))}/></div>
+    </Card>}
     {failures.length>0&&<Card title="Failed operations" sub="What failed and how to recover. Failed calls release their budget.">
       <Rows items={failures.slice(0,5).map((r,i)=>({k:(r.operation||'operation').replace(/-/g,' ')+' · '+String(r.model||''),v:(r.errorCode||'Unknown error')+' — '+guidanceFor(r.errorCode)}))}/>
     </Card>}
@@ -161,7 +174,7 @@ export default function ActivityView({mission,onNavigate,metaStatus,token,sessio
           {k:'3 · Creative generated',v:loop.creative.count===0?'No assets yet':loop.creative.count+' asset(s): '+loop.creative.assets.map(a=>String(a.assetId).slice(0,12)+'…'+(a.format?' ['+a.format+']':'')).join(', ')},
           {k:'4 · Social drafts',v:loop.socialDrafts.length===0?'None':loop.socialDrafts.map(s=>s.channel+' ('+s.status.replace(/_/g,' ')+(s.hasContract?', contract':'')+')').join(' · ')},
           {k:'5 · Human approval',v:loop.approval.status.replace(/_/g,' ')+(loop.approval.actor?' by '+loop.approval.actor+' ('+(loop.approval.role||'—')+')':'')},
-          {k:'6 · Publication',v:'NOT CONNECTED — no connector, ad account, or spending path exists'},
+          {k:'6 · Publication',v:'NOT CONNECTED — no connector, ad account, or spending path exists; the rollout plan is briefed above'},
           {k:'7 · Performance',v:'NOT AVAILABLE — no impressions, conversions, or revenue are measured'},
         ]}/>
         {loop.dispatch&&loop.dispatch.count>0&&<p className="muted" style={{marginTop:8}}>Sandbox export: {loop.dispatch.count} receipt(s); latest {String(loop.dispatch.receipts[0].dispatchId).slice(0,20)+'…'} · approval → export {fmtLatency(loop.dispatch.receipts[0].approvalLatencyMs)}. Exports attest approved bytes left the workspace for the tenant outbox — they are not publishing.</p>}
