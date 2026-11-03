@@ -44,10 +44,12 @@ export function planMission(input,options={}){
   const missionId=crypto.randomUUID();
   const base={name:f.name,industry:f.industry,objective:f.objective,audience:f.audience,facts:f.facts,website:f.website};
   const websiteStatus=site?(site.renderedVia==='reader'?'RETRIEVED_RENDERED':(site.redirectHops>0?'RETRIEVED_WITH_REDIRECT':'RETRIEVED')):(failure?'RETRIEVAL_FAILED_'+failure:(f.website?'REFERENCE_ONLY_NOT_CRAWLED':'NOT_PROVIDED'));
+  const followupNotes=String(f.facts||'').split('\n').filter(l=>l.startsWith('Follow-up:')).map(l=>l.slice('Follow-up: '.length).trim().slice(0,500)).filter(Boolean).slice(-5);
+  const followupLatest=followupNotes.length>0?followupNotes[followupNotes.length-1]:null;
   // category is a fixed template label for this single deterministic draft
   // type, matching the production growth taxonomy. It is structural, not a
   // measured confidence or classification result.
-  const growth={category:'MARKETING_ACQUISITION',opportunity:'Test a focused campaign for '+f.audience,reason:'The supplied goal suggests testing customer acquisition; this is a hypothesis, not an observed business diagnosis.',objective:f.objective,measurement:'Track qualified enquiries or attributed visits after authorized execution',results:null};
+  const growth={category:'MARKETING_ACQUISITION',opportunity:'Test a focused campaign for '+f.audience,reason:'The supplied goal suggests testing customer acquisition; this is a hypothesis, not an observed business diagnosis.'+(followupLatest?' Re-planned with follow-up focus: "'+followupLatest.slice(0,200)+'".':''),objective:f.objective,measurement:'Track qualified enquiries or attributed visits after authorized execution',results:null};
   const social=buildChannelDrafts({business:base,growth,brand:sanitizeBrandKit(input&&input.brand)},opts).map((d,i)=>({channel:d.channel,copy:i===0?'Discover '+f.name+' — '+f.objective+'.':'Meet '+f.name+'. Explore what makes us different.',caption:d.caption,cta:d.cta,audience:d.audience,hashtags:d.hashtags,grounding:d.grounding,status:'DRAFT_ONLY'}));
   const multimedia=buildMultimediaCampaignPlan({business:base,growth});
   return {schemaVersion:MISSION_SCHEMA_VERSION,missionId,createdAt:new Date().toISOString(),status:'AWAITING_HUMAN_REVIEW',provider:'DETERMINISTIC_DEMO_NOT_META_AI',business:base,
@@ -56,6 +58,7 @@ export function planMission(input,options={}){
   creative:{brief:'Design an on-brand concept for '+f.name+' directed at '+f.audience+'. Verify actual brand assets before production.',assets:[],generated:false,multimedia},
   social,
   brand:sanitizeBrandKit(input&&input.brand),
+  followup:{count:followupNotes.length,latest:followupLatest,notes:followupNotes},
   approval:{status:'NOT_REQUESTED',actor:null},
   execution:{status:'NOT_CONNECTED',receipt:null},
   feedback:{status:'AWAITING_REAL_DATA',metrics:[]}

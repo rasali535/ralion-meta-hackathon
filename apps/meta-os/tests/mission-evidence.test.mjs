@@ -64,3 +64,15 @@ test('attaches rendered fallback evidence with RETRIEVED_RENDERED and sha256-tex
   assert.equal(m.evidence.site.contentHash,textHash);
 });
 
+test('echoes follow-up notes into the deterministic plan',()=>{
+  const plain=planMission({name:'Northstar Coffee',industry:'Hospitality',objective:'Increase morning visits'});
+  assert.deepEqual(plain.followup,{count:0,latest:null,notes:[]});
+  assert.equal(plain.growth.reason,'The supplied goal suggests testing customer acquisition; this is a hypothesis, not an observed business diagnosis.');
+  const revised=planMission({name:'Northstar Coffee',industry:'Hospitality',objective:'Increase morning visits',facts:'House roaster.\nFollow-up: Focus on weekend foot traffic'});
+  assert.equal(revised.followup.count,1);
+  assert.equal(revised.followup.latest,'Focus on weekend foot traffic');
+  assert.ok(revised.growth.reason.includes('Re-planned with follow-up focus: "Focus on weekend foot traffic".'));
+  const multi=planMission({name:'Northstar Coffee',industry:'Hospitality',objective:'Increase morning visits',facts:'Follow-up: First note\nFollow-up: Second note'});
+  assert.equal(multi.followup.count,2);
+  assert.equal(multi.followup.latest,'Second note');
+});

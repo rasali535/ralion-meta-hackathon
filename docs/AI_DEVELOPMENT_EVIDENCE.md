@@ -81,7 +81,7 @@ Production isolation: no production Ralion OS code, database, Stripe, Meta ad ac
 
 ## 5. Tests
 
-229 passing tests (9 root, 220 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
+230 passing tests (9 root, 221 in `apps/meta-os`), run offline with `node --test`. No billable calls occur in the test suite.
 
 ```bash
 npm test
@@ -135,7 +135,7 @@ Authorship of test files is documented in [MUSE_CODE_DEVELOPMENT.md](MUSE_CODE_D
 
 ## 6. Verification steps for judges
 
-1. Clone the repo and run the two test commands above (229/229 passing: 9 root + 220 Meta OS).
+1. Clone the repo and run the two test commands above (230/230 passing: 9 root + 221 Meta OS).
 2. `cd apps/meta-os && npm install && npm run build && npm run dev`, open `http://localhost:3600`. The mission flow is a deterministic demo with website evidence; creative generation uses mock offline bytes when keys are offline; it is not a billable Meta model call.
 3. Observe automatic demo session initialization: topbar displays `DEMO SESSION` badge; all protected actions (mission planning, creative generation, social approval, usage telemetry) authenticate seamlessly via server-issued `HttpOnly` session cookie without requiring manually entering or pasting any token.
 4. Run the automated real-browser acceptance test: `node scripts/browser-acceptance.mjs`. It drives headless Chrome through all 8 workspaces, tests theme toggling, mission submission with active session, creative prompt composer with requested format controls (9:16 Story), unconfirmed generation rejection, authorized generation with signed capability URLs, social draft cards with canonical handoffs, human approval minting with approval hash binding, activity workspace with usage telemetry and 7-stage learning loop inspector, and settings workspace session revocation and re-issuance lifecycle.

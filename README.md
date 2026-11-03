@@ -1,8 +1,8 @@
-﻿# MARI Growth Autopilot — Meta Hackathon 2026
+# MARI Growth Autopilot — Meta Hackathon 2026
 
 Standalone, public submission worktree. This is **not** a mirror of production Ralion OS.
 
-[![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-230%20passing-brightgreen.svg)](#tests)
 [![Meta models](https://img.shields.io/badge/Meta%20models-live%20verified%20receipts-blue.svg)](docs/AI_DEVELOPMENT_EVIDENCE.md)
 [![Muse Code](https://img.shields.io/badge/Muse%20Code-session%20log%20evidence-lightgrey.svg)](docs/MUSE_CODE_DEVELOPMENT.md)
 
@@ -10,7 +10,7 @@ Standalone, public submission worktree. This is **not** a mirror of production R
 Business context → Meta-powered reasoning → evidence-backed growth action proposal → multimedia creative synthesis (image, playable 9:16 video reel, and voiceover workflow) → human approval → isolated action execution → measured outcome.
 
 ## Current status (honest summary)
-- **Working and tested offline (229 tests: 9 root + 220 Meta OS):**
+- **Working and tested offline (230 tests: 9 root + 221 Meta OS):**
   - **Multimedia Campaign Reel & Voice Workflow:**
     - Single business instruction with voice dictation (`SpeechRecognition` + one-click spoken preset fallback) and MARI spoken audio briefing (`speechSynthesis`) in the Command Centre (`apps/meta-os/app/views/command.jsx`).
     - 3-scene 9:16 campaign reel storyboard & commercial voiceover generator (`apps/meta-os/lib/multimedia.js`), producing tenant-isolated ISO-BMFF MP4 container assets (`video/mp4`) and 16-bit PCM WAV voiceover narration tracks (`audio/wav`), plus an interactive HTML5 Canvas / `MediaRecorder` playable video reel player in Creative Studio (`apps/meta-os/app/views/creative.jsx`) and Social review (`apps/meta-os/app/views/social.jsx`).
@@ -70,7 +70,7 @@ Requires Node.js 20 or newer. No billable API calls run in tests.
 
 ```bash
 npm test                         # 9 root tests
-npm --prefix apps/meta-os test   # 220 Meta OS tests (229 total)
+npm --prefix apps/meta-os test   # 221 Meta OS tests (230 total)
 ```
 
 ## Run the apps locally

@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {ArrowRight,BrainCircuit,Send} from 'lucide-react';
 import {missionStatus} from '../../lib/navigation';
-import {Badge,Card,Rows,EmptyState,ModeBadge,LiveErrorBanner} from '../components/ui';
+import {Badge,Card,Rows,EmptyState,ModeBadge,LiveErrorBanner,Spinner} from '../components/ui';
 
 function planRows(m){
   return [
@@ -12,7 +12,7 @@ function planRows(m){
   ];
 }
 
-export default function MariView({mission,onNavigate,onFollowup}){
+export default function MariView({mission,onNavigate,onFollowup,loading,error}){
   const status=missionStatus(mission);
   const [followup,setFollowup]=useState('');
   if(status.presence==='none'){
@@ -64,9 +64,11 @@ export default function MariView({mission,onNavigate,onFollowup}){
       <Rows items={planRows(m)}/>
     </Card>}
     <Card title="Ask a follow-up" sub="Your note is added to the business facts and the mission is planned again as a new revision.">
+      {m.followup&&m.followup.count>0&&<div style={{marginBottom:12}}><Rows items={[{k:'Follow-ups incorporated',v:String(m.followup.count)},{k:'Latest focus',v:m.followup.latest||'—'}]}/></div>}
       <form className="hero-goal" onSubmit={ask}>
         <input className="input" value={followup} onChange={e=>setFollowup(e.target.value)} maxLength={500} placeholder="e.g. Focus on weekend foot traffic instead" aria-label="Follow-up question for MARI"/>
-        <button type="submit" className="btn primary" disabled={!followup.trim()}><Send size={15}/> Ask follow-up</button>
+        <button type="submit" className="btn primary" disabled={!followup.trim()||loading}>{loading?<span><Spinner/> Planning…</span>:<><Send size={15}/> Ask follow-up</>}</button>
+        {error&&<p className="error-box" role="alert">{error}</p>}
       </form>
     </Card>
     <Card title="Reasoning mode" sub="How this mission was planned, and how to change it.">
