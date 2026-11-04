@@ -50,13 +50,13 @@ const VIEWS={
 };
 
 const STARTER_BUSINESS={
-  name:'Northstar Coffee',
-  industry:'Hospitality / coffee',
-  website:'https://example.org',
-  audience:'Local morning commuters and remote workers',
-  objective:'Increase morning customer visits and establish an afternoon remote-work offering',
-  facts:'Speciality roaster with two high-street locations. Strong morning trade; under-used afternoon capacity. Looking to test a focused promotion without heavy discounting.',
-  brand:{tagline:'',tone:'friendly',hashtags:'',primaryColor:'#1F2937',accentColor:'#0EA5A6',ctaStyle:''}
+  name:'Ras Ali Labs',
+  industry:'Creative technology studio',
+  website:'https://rasalilabs.com',
+  audience:'Founders, brands and artists needing film, web, apps and AI work',
+  objective:'Increase qualified project enquiries and establish a retainer offering for ongoing AI and creative work',
+  facts:'Multidisciplinary studio working across technology, film, web, apps, music and AI. Strong project delivery; looking to test a focused promotion that brings a steady flow of enquiries without discounting.',
+  brand:{tagline:'empowered to prosper',tone:'professional',hashtags:'#rasalilabs #creativetech #ai',primaryColor:'#1F2937',accentColor:'#0EA5A6',ctaStyle:'Start your project'}
 };
 
 export default function Shell(){
